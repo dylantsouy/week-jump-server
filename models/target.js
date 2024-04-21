@@ -35,7 +35,7 @@ module.exports = (sequelize, DataTypes) => {
                     '1: 持有, 2: 看好, 3: 有機會, 4: 需等待, 5: 待觀察, 6: 中立, 7: 已反應, 8: 有風險, 9: 中立偏空, 10: 不看好',
             },
             initPrice: {
-                type: DataTypes.INTEGER,
+                type: DataTypes.FLOAT,
                 defaultValue: 0,
             },
             sort:{
