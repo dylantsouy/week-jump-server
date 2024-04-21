@@ -8,13 +8,6 @@ const app = express();
 global.__basedir = __dirname;
 const cron = require('node-cron');
 const { createStocks } = require('./controllers/stock');
-const cloudinary = require('cloudinary').v2;
-
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
 cron.schedule('0 14 * * *', async () => {
     console.log('Running createStocks task at 14:00 every day');
