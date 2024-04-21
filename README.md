@@ -1,10 +1,10 @@
 <p align="center">
   <a href="" rel="noopener">
- <img width=400px height=210px src="https://i.imgur.com/D7lZnjb.png" alt="Project logo"></a>
+ <img width=400px height=210px src="https://imgur.com/a/m0b4ZIL.png" alt="Project logo"></a>
 </p> 
 
 <h3 align="center">Luckydraw-server</h3>
-<p align="center">https://dylantsouy.github.io/luckydraw-frontend/#/login
+<p align="center">https://dylantsouy.github.io/week-jump-dashboard/#/login
 </p>
 
 
@@ -22,7 +22,7 @@
 
 ## 🧐 About <a name = "about"></a>
 
- This is the Luckydarw api, This is just a project. If you need more information, Please feel free to contact me at any time
+ This is the Week-Jump-Dashboard api, This is just a project. If you need more information, Please feel free to contact me at any time
 
 ## 🏁 Getting Started <a name = "getting_started"></a>
 
