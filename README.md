@@ -1,9 +1,9 @@
-<p align="center">
+<!-- <p align="center">
   <a href="" rel="noopener">
  <img width=400px height=210px src="https://imgur.com/a/m0b4ZIL.png" alt="Project logo"></a>
-</p> 
+</p>  -->
 
-<h3 align="center">Luckydraw-server</h3>
+<h3 align="center">Week-jump-Dashboard-server</h3>
 <p align="center">https://dylantsouy.github.io/week-jump-dashboard/#/login
 </p>
 
