@@ -18,7 +18,7 @@ const createTarget = async (req, res) => {
         const body = {
             stockCode: req.body.stockCode,
             rate: req.body.rate,
-            initPrice: stock.price,
+            initPrice: req.body.initPrice,
             eps: req.body.eps,
             avergePE: req.body.avergePE,
             sort: req.body.sort,
