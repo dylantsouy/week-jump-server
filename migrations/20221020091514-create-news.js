@@ -24,7 +24,7 @@ module.exports = {
             },
             content: {
                 allowNull: true,
-                type: Sequelize.STRING,
+                type: Sequelize.TEXT,
             },
             fromWhere: {
                 allowNull: true,
@@ -46,7 +46,7 @@ module.exports = {
                 type: Sequelize.INTEGER,
                 defaultValue: 1,
                 comment:
-                    '1: 時間未到, 2: 提前完成, 3: 準時完成, 4:延後完成 , 5: 延後未完, 6: 狀況不明, 7: 悲觀延後, 8: 樂觀準時',
+                    '1: 時間未到, 2: 提前完成, 3: 準時完成, 4:延後完成 , 5: 延後未完, 6: 狀況不明, 7: 悲觀延後, 8: 樂觀準時, 9: 無時效性',
             },
             targetId: {
                 allowNull: false,

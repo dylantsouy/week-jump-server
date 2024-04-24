@@ -33,7 +33,7 @@ module.exports = (sequelize, DataTypes) => {
             },
             content:{
                 allowNull: true,
-                type: DataTypes.STRING,
+                type: DataTypes.TEXT,
             },
             fromWhere: {
                 allowNull: true,

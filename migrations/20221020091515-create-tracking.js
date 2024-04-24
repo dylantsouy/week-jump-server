@@ -20,7 +20,7 @@ module.exports = {
             },
             content:{
                 allowNull: true,
-                type: Sequelize.STRING,
+                type: Sequelize.TEXT,
             },
             fromWhere: {
                 allowNull: true,
