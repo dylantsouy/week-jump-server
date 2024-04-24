@@ -65,6 +65,7 @@ const getAllNews = async (req, res) => {
                     model: Tracking,
                 },
             ],
+            order: [['name', 'ASC']], 
         });
 
         const groupedData = {};
@@ -93,9 +94,10 @@ const getAllNews = async (req, res) => {
             });
         });
 
+        Object.values(groupedData).forEach((group) => {
+            group.items.sort((a, b) => a.sort - b.sort); // 根据 sort 属性升序排序
+        });
         const result = Object.values(groupedData);
-
-        result.sort((a, b) => a.name.localeCompare(b.name));
 
         return res.status(200).json({ data: result, success: true });
     } catch (error) {
