@@ -44,12 +44,13 @@ const getAllNames = async (req, res) => {
 
         const uniqueNames = new Set(names.map((e) => e.name));
 
-        const newsNames = Array.from(uniqueNames);
-        return res.status(200).json({ data: newsNames, success: true });
+        const sortedNames = Array.from(uniqueNames).sort((a, b) => a.localeCompare(b));
+        return res.status(200).json({ data: sortedNames, success: true });
     } catch (error) {
         return res.status(500).send({ message: errorHandler(error), success: false });
     }
 };
+
 const getAllNews = async (req, res) => {
     try {
         const { targetId } = req.params;
@@ -92,7 +93,6 @@ const getAllNews = async (req, res) => {
                 fromWhere: item.fromWhere,
             });
         });
-
 
         const result = Object.values(groupedData);
 
