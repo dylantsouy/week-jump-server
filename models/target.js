@@ -45,7 +45,7 @@ module.exports = (sequelize, DataTypes) => {
             eps:{
                 type: DataTypes.JSON,
             },
-            avergePE:{
+            averagePE:{
                 type: DataTypes.STRING,
             },
             CAGR:{
