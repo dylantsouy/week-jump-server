@@ -39,6 +39,7 @@ const getAllTargets = async (req, res) => {
         const data = await Target.findAll({
             include: Stock,
             raw: true,
+            order: [['sort', 'ASC']]
         });
 
         const adjustedData = data.map((item) => {
