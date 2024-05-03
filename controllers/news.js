@@ -61,11 +61,6 @@ const getAllNews = async (req, res) => {
 
         const data = await News.findAll({
             where: { targetId },
-            include: [
-                {
-                    model: Tracking,
-                },
-            ],
         });
 
         const groupedData = {};

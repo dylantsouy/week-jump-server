@@ -4,6 +4,7 @@ const TargetControllers = require('../controllers/target');
 const TrackingtControllers = require('../controllers/tracking');
 const AdminControllers = require('../controllers/admin');
 const StockControllers = require('../controllers/stock');
+const JumpControllers = require('../controllers/jump');
 const NewstControllers = require('../controllers/news');
 const verifyToken = require('../middlewares/authJwt');
 
@@ -34,5 +35,9 @@ router.get('/trackings/:newsId', [verifyToken], TrackingtControllers.getAllTrack
 router.post('/trackings', [verifyToken], TrackingtControllers.createTracking);
 router.put('/trackings/:id', [verifyToken], TrackingtControllers.updateTracking);
 router.delete('/trackings/:id', [verifyToken], TrackingtControllers.deleteTracking);
+
+router.post('/jumps', [verifyToken], JumpControllers.createJumps);
+router.get('/jumps', [verifyToken], JumpControllers.getAllJumps);
+router.put('/jumpRecords/:id', [verifyToken], JumpControllers.updateJumpRecord);
 
 module.exports = router;
