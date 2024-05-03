@@ -9,7 +9,7 @@ global.__basedir = __dirname;
 const cron = require('node-cron');
 const { createStocks } = require('./controllers/stock');
 
-cron.schedule('0 14 * * *', async () => {
+cron.schedule('0 6 * * *', async () => {
     console.log('Running createStocks task at 14:00 every day');
     try {
         await createStocks();
