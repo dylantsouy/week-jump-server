@@ -68,7 +68,7 @@ async function fetchData(codeArray, perd, date) {
             const last_value = _last.v;
             const this_low = _this.o;
             const last_high = _last.h;
-            if (this_low > last_high) {
+            if (this_low > last_high && last_value > 100) {
                 let success = {
                     stockCode: codeArray.code,
                     lastPrice: last_high,
