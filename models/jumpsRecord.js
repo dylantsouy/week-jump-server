@@ -30,9 +30,17 @@ module.exports = (sequelize, DataTypes) => {
                 allowNull: false,
                 comment: 'd: 日跳, w: 周跳, m: 月跳',
             },
-            price: {
+            lastPrice: {
                 allowNull: false,
                 type: DataTypes.FLOAT,
+            },
+            jumpPrice: {
+                allowNull: false,
+                type: DataTypes.FLOAT,
+            },
+            lastValue: {
+                allowNull: false,
+                type: DataTypes.INTEGER,
             },
             closed: {
                 allowNull: false,

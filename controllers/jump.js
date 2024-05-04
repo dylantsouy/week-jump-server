@@ -65,13 +65,16 @@ async function fetchData(codeArray, perd, date) {
                 _this = tickData[dateIndex + 1];
                 _last = tickData[dateIndex];
             }
+            const last_value = _last.v;
             const this_low = _this.o;
             const last_high = _last.h;
             if (this_low > last_high) {
                 let success = {
                     stockCode: codeArray.code,
-                    price: last_high,
+                    lastPrice: last_high,
+                    jumpPrice: this_low,
                     date,
+                    lastValue: last_value,
                 };
                 console.log('has jump', success);
                 return success;
@@ -102,7 +105,7 @@ const createJumps = async (req, res) => {
         }
         const createdJumps = [];
         for (const jumpData of data) {
-            const { stockCode, price } = jumpData;
+            const { stockCode, lastPrice, jumpPrice, lastValue } = jumpData;
             const [jump] = await Jump.findOrCreate({
                 where: { stockCode },
                 defaults: { stockCode },
@@ -114,7 +117,9 @@ const createJumps = async (req, res) => {
             if (!existingRecord) {
                 record = await JumpsRecord.create({
                     type: perd,
-                    price,
+                    lastPrice,
+                    jumpPrice,
+                    lastValue,
                     closed: false,
                     jumpId: jump.id,
                     date,
@@ -146,15 +151,17 @@ const getAllJumps = async (req, res) => {
 const updateJumpRecord = async (req, res) => {
     try {
         const { id } = req.params;
-        const { type, price, closed, date } = req.body;
+        const { type, closed, date, lastValue, jumpPrice, lastPrice } = req.body;
 
-        if (!type || !price || !closed || !date) {
+        if (!type || !lastPrice || !closed || !date || !lastValue || !jumpPrice) {
             return res.status(400).json({ message: 'please fill required field', success: false });
         }
 
         const body = {
             type,
-            price,
+            lastValue,
+            jumpPrice,
+            lastPrice,
             closed,
             date,
         };
