@@ -125,7 +125,7 @@ const createJumps = async (req, res) => {
                     date,
                 });
             }
-            if (record) createdJumps.push({ type: perd, price, code: stockCode, date, closed: false });
+            if (record) createdJumps.push({ code: stockCode });
         }
         if (createdJumps.length === 0) {
             return res.status(400).json({ message: 'No new jumps created', success: false });
