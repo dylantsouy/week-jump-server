@@ -122,7 +122,7 @@ const createJumps = async (req, res) => {
                     lastPrice: lastHight,
                     jumpPrice: thisOpen,
                     lastValue,
-                    closed: thisLow < lastHight ? true : false,
+                    closed: thisLow > lastHight ? false : true,
                     jumpId: jump.id,
                     date,
                 });
@@ -147,7 +147,7 @@ const getAllJumps = async (req, res) => {
 
         // 更新 closed 欄位的邏輯
         const updateClosedStatus = async (record,jump) => {
-            if (record.lastPrice > jump.Stock.price && !record.closed) {
+            if (record.lastPrice >= jump.Stock.price && !record.closed) {
                 await record.update({ closed: true });
             }
         };
@@ -214,7 +214,7 @@ const updateIfClosed = async () => {
 
         for (const jump of jumps) {
             for (const record of jump.JumpsRecords) {
-                if (record.lastPrice > jump.Stock.price && !record.closed) {
+                if (record.lastPrice >= jump.Stock.price && !record.closed) {
                     await record.update({ closed: true });
                 }
             }
