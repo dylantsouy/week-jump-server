@@ -140,7 +140,7 @@ const createJumps = async (req, res) => {
 
 const getAllJumps = async (req, res) => {
     try {
-        const { type, date } = req.query;
+        const { type, date, closed } = req.query;
         let jumps = await Jump.findAll({
             include: [Stock, JumpsRecord],
         });
@@ -167,10 +167,10 @@ const getAllJumps = async (req, res) => {
                     } else {
                         jumpCount_m++;
                     }
-                    // 如果提供了 date 參數，只保留符合指定 date 的 JumpsRecord
+                    if (record.closed !== closed) return false;
+
                     if (date && record.date !== date) return false;
 
-                    // 如果提供了 type 參數，只保留符合指定 type 的 JumpsRecord
                     if (type && record.type !== type) return false;
                     // 更新 closed 欄位
                     updateClosedStatus(record, jump);
