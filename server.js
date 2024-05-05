@@ -8,14 +8,16 @@ const app = express();
 global.__basedir = __dirname;
 const cron = require('node-cron');
 const { createStocks } = require('./controllers/stock');
+const { updateIfClosed } = require('./controllers/jump');
 
 cron.schedule('0 8 * * *', async () => {
-    console.log('Running createStocks task at 14:00 every day');
+    console.log('Running daily updated task after 14:00 every day');
     try {
         await createStocks();
-        console.log('createStocks task completed successfully');
+        await updateIfClosed();
+        console.log('daily updated task completed successfully');
     } catch (error) {
-        console.error('Error running createStocks task:', error);
+        console.error('Error running daily updated task:', error);
     }
 });
 

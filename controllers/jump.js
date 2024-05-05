@@ -66,13 +66,15 @@ async function fetchData(codeArray, perd, date) {
                 _last = tickData[dateIndex];
             }
             const last_value = _last.v;
-            const this_low = _this.o;
+            const this_open = _this.o;
+            const this_low = _this.l;
             const last_high = _last.h;
-            if (this_low > last_high && this_low > 15 && last_value > 100) {
+            if (this_open > last_high && this_open > 15 && last_value > 100) {
                 let success = {
                     stockCode: codeArray.code,
-                    lastPrice: last_high,
-                    jumpPrice: this_low,
+                    lastHight: last_high,
+                    thisOpen: this_open,
+                    thisLow: this_low,
                     date,
                     lastValue: last_value,
                 };
@@ -105,7 +107,7 @@ const createJumps = async (req, res) => {
         }
         const createdJumps = [];
         for (const jumpData of data) {
-            const { stockCode, lastPrice, jumpPrice, lastValue } = jumpData;
+            const { stockCode, lastHight, thisOpen, lastValue, thisLow } = jumpData;
             const [jump] = await Jump.findOrCreate({
                 where: { stockCode },
                 defaults: { stockCode },
@@ -117,10 +119,10 @@ const createJumps = async (req, res) => {
             if (!existingRecord) {
                 record = await JumpsRecord.create({
                     type: perd,
-                    lastPrice,
-                    jumpPrice,
+                    lastPrice: lastHight,
+                    jumpPrice: thisOpen,
                     lastValue,
-                    closed: false,
+                    closed: thisLow < lastHight ? true : false,
                     jumpId: jump.id,
                     date,
                 });
@@ -138,13 +140,89 @@ const createJumps = async (req, res) => {
 
 const getAllJumps = async (req, res) => {
     try {
-        const jumps = await Jump.findAll({
+        const { type, date } = req.query;
+        let jumps = await Jump.findAll({
             include: [Stock, JumpsRecord],
         });
+
+        // 更新 closed 欄位的邏輯
+        const updateClosedStatus = async (record,jump) => {
+            if (record.lastPrice > jump.Stock.price && !record.closed) {
+                await record.update({ closed: true });
+            }
+        };
+
+        jumps = await Promise.all(jumps.map(async (jump) => {
+            let newestRecord = null;
+            let newestDate = null;
+            let jumpCount_d = 0;
+            let jumpCount_w = 0;
+            let jumpCount_m = 0;
+            const filteredRecords = jump.JumpsRecords.filter((record) => {
+                if (record.type === 'd') {
+                    jumpCount_d++;
+                } else if (record.type === 'w') {
+                    jumpCount_w++;
+                } else {
+                    jumpCount_m++;
+                }
+                // 如果提供了 date 參數，只保留符合指定 date 的 JumpsRecord
+                if (date && record.date !== date) return false;
+
+                // 如果提供了 type 參數，只保留符合指定 type 的 JumpsRecord
+                if (type && record.type !== type) return false;
+                // 更新 closed 欄位
+                updateClosedStatus(record,jump);
+
+                // 找出最新的 JumpsRecord
+                if (!newestRecord || moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecord, 'YYYYMMDD'))) {
+                    newestRecord = record;
+                    newestDate = record.date;
+                }
+
+                return true;
+            });
+
+            if (filteredRecords.length) {
+                return {
+                    ...jump.toJSON(),
+                    filteredRecords: filteredRecords,
+                    newestDate,
+                    jumpCount_d,
+                    jumpCount_w,
+                    jumpCount_m,
+                    newest: newestRecord,
+                };
+            } else {
+                return null;
+            }
+        }));
+
+        jumps = jumps.filter((jump) => jump !== null);
 
         return res.status(200).json({ data: jumps, success: true });
     } catch (error) {
         return res.status(500).send({ message: errorHandler(error), success: false });
+    }
+};
+
+const updateIfClosed = async () => {
+    try {
+        const jumps = await Jump.findAll({
+            include: [Stock, JumpsRecord],
+        });
+
+        for (const jump of jumps) {
+            for (const record of jump.JumpsRecords) {
+                if (record.lastPrice > jump.Stock.price && !record.closed) {
+                    await record.update({ closed: true });
+                }
+            }
+        }
+
+        console.log('updateIfClosed task completed successfully');
+    } catch (error) {
+        console.error('Error running updateIfClosed task:', error);
     }
 };
 
@@ -211,10 +289,23 @@ const deleteJump = async (req, res) => {
 const deleteJumpsRecord = async (req, res) => {
     try {
         const { id } = req.params;
-        const deleted = await JumpsRecord.destroy({
+        const jumpsRecordToDelete = await JumpsRecord.findOne({
             where: { id },
         });
+
+        const deleted = await jumpsRecordToDelete.destroy();
         if (deleted) {
+            const jumpId = deleted.jumpId;
+
+            const jumpHasRecords = await JumpsRecord.findOne({
+                where: { jumpId: jumpsRecordToDelete.jumpId },
+            });
+
+            if (!jumpHasRecords) {
+                await Jump.destroy({
+                    where: { id: jumpId },
+                });
+            }
             return res.status(200).send({ message: 'Successful deleted', success: true });
         }
         return res.status(400).send({
@@ -232,4 +323,5 @@ module.exports = {
     updateJumpRecord,
     deleteJump,
     deleteJumpsRecord,
+    updateIfClosed
 };

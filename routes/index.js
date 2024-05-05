@@ -39,5 +39,8 @@ router.delete('/trackings/:id', [verifyToken], TrackingtControllers.deleteTracki
 router.post('/jumps', [verifyToken], JumpControllers.createJumps);
 router.get('/jumps', [verifyToken], JumpControllers.getAllJumps);
 router.put('/jumpRecords/:id', [verifyToken], JumpControllers.updateJumpRecord);
+router.delete('/jumpRecords/:id', [verifyToken], JumpControllers.deleteJumpsRecord);
+router.delete('/jumps/:id', [verifyToken], JumpControllers.deleteJump);
+router.post('/jumps/updateIfClosed', [verifyToken], JumpControllers.updateIfClosed);
 
 module.exports = router;

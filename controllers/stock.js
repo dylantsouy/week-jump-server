@@ -1,8 +1,6 @@
 const { Stock } = require('../models');
 const { errorHandler } = require('../helpers/responseHelper');
 const axios = require('axios');
-
-const perd = 'd'; // d, w, m
 const { stock_codes } = require('../saveData');
 
 const header = {
@@ -22,7 +20,7 @@ const header = {
 };
 
 async function fetchData(codeArray) {
-    const yahooStockUrl = `https://tw.quote.finance.yahoo.net/quote/q?type=ta&perd=${perd}&mkt=10&sym=${codeArray.code}&v=1&callback=test123`;
+    const yahooStockUrl = `https://tw.quote.finance.yahoo.net/quote/q?type=ta&perd=d&mkt=10&sym=${codeArray.code}&v=1&callback=test123`;
     try {
         const response = await axios.get(yahooStockUrl, { headers: header });
         const text = response.data.replace('test123(', '');
