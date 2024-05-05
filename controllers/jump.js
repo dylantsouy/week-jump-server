@@ -157,6 +157,7 @@ const getAllJumps = async (req, res) => {
                 let newestRecordClosed = null;
                 let newestRecord = null;
                 let newestDate = null;
+                let newestDateClosed = null;
                 let jumpCount_d = 0;
                 let jumpCount_w = 0;
                 let jumpCount_m = 0;
@@ -186,16 +187,18 @@ const getAllJumps = async (req, res) => {
                     }
 
                     if (
-                        (!newestRecordClosed || moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecordClosed, 'YYYYMMDD'))) 
+                        !newestRecordClosed ||
+                        moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecordClosed, 'YYYYMMDD'))
                     ) {
                         newestRecordClosed = record;
+                        newestDateClosed = record.date;
                     }
                     return true;
                 });
 
                 if (!newestRecord) {
                     newestRecord = newestRecordClosed;
-                    newestDate = newestRecordClosed.date;
+                    newestDate = newestDateClosed;
                 }
 
                 if (filteredRecords.length) {
