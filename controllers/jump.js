@@ -167,7 +167,7 @@ const getAllJumps = async (req, res) => {
                     } else {
                         jumpCount_m++;
                     }
-                    if (String(record.closed) !== closed) return false;
+                    if (closed === 'false' && String(record.closed) !== closed) return false;
 
                     if (date && record.date !== date) return false;
 
