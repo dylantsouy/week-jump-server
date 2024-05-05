@@ -154,6 +154,7 @@ const getAllJumps = async (req, res) => {
 
         jumps = await Promise.all(
             jumps.map(async (jump) => {
+                let newestRecordClosed = null;
                 let newestRecord = null;
                 let newestDate = null;
                 let jumpCount_d = 0;
@@ -184,13 +185,22 @@ const getAllJumps = async (req, res) => {
                         newestDate = record.date;
                     }
 
+                    if (
+                        (!newestRecordClosed || moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecordClosed, 'YYYYMMDD'))) 
+                    ) {
+                        newestRecordClosed = record;
+                    }
                     return true;
                 });
+
+                if (!newestRecord) {
+                    newestRecord = newestRecordClosed;
+                    newestDate = newestRecordClosed.date;
+                }
 
                 if (filteredRecords.length) {
                     return {
                         ...jump.toJSON(),
-                        filteredRecords: filteredRecords,
                         newestDate,
                         jumpCount_d,
                         jumpCount_w,
