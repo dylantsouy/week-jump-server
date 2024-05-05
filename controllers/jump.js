@@ -146,57 +146,62 @@ const getAllJumps = async (req, res) => {
         });
 
         // 更新 closed 欄位的邏輯
-        const updateClosedStatus = async (record,jump) => {
+        const updateClosedStatus = async (record, jump) => {
             if (record.lastPrice >= jump.Stock.price && !record.closed) {
                 await record.update({ closed: true });
             }
         };
 
-        jumps = await Promise.all(jumps.map(async (jump) => {
-            let newestRecord = null;
-            let newestDate = null;
-            let jumpCount_d = 0;
-            let jumpCount_w = 0;
-            let jumpCount_m = 0;
-            const filteredRecords = jump.JumpsRecords.filter((record) => {
-                if (record.type === 'd') {
-                    jumpCount_d++;
-                } else if (record.type === 'w') {
-                    jumpCount_w++;
+        jumps = await Promise.all(
+            jumps.map(async (jump) => {
+                let newestRecord = null;
+                let newestDate = null;
+                let jumpCount_d = 0;
+                let jumpCount_w = 0;
+                let jumpCount_m = 0;
+                const filteredRecords = jump.JumpsRecords.filter((record) => {
+                    if (record.type === 'd') {
+                        jumpCount_d++;
+                    } else if (record.type === 'w') {
+                        jumpCount_w++;
+                    } else {
+                        jumpCount_m++;
+                    }
+                    // 如果提供了 date 參數，只保留符合指定 date 的 JumpsRecord
+                    if (date && record.date !== date) return false;
+
+                    // 如果提供了 type 參數，只保留符合指定 type 的 JumpsRecord
+                    if (type && record.type !== type) return false;
+                    // 更新 closed 欄位
+                    updateClosedStatus(record, jump);
+
+                    // 找出最新的 JumpsRecord
+                    if (
+                        (!newestRecord || moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecord, 'YYYYMMDD'))) &&
+                        !record.closed
+                    ) {
+                        newestRecord = record;
+                        newestDate = record.date;
+                    }
+
+                    return true;
+                });
+
+                if (filteredRecords.length) {
+                    return {
+                        ...jump.toJSON(),
+                        filteredRecords: filteredRecords,
+                        newestDate,
+                        jumpCount_d,
+                        jumpCount_w,
+                        jumpCount_m,
+                        newest: newestRecord,
+                    };
                 } else {
-                    jumpCount_m++;
+                    return null;
                 }
-                // 如果提供了 date 參數，只保留符合指定 date 的 JumpsRecord
-                if (date && record.date !== date) return false;
-
-                // 如果提供了 type 參數，只保留符合指定 type 的 JumpsRecord
-                if (type && record.type !== type) return false;
-                // 更新 closed 欄位
-                updateClosedStatus(record,jump);
-
-                // 找出最新的 JumpsRecord
-                if (!newestRecord || moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecord, 'YYYYMMDD'))) {
-                    newestRecord = record;
-                    newestDate = record.date;
-                }
-
-                return true;
-            });
-
-            if (filteredRecords.length) {
-                return {
-                    ...jump.toJSON(),
-                    filteredRecords: filteredRecords,
-                    newestDate,
-                    jumpCount_d,
-                    jumpCount_w,
-                    jumpCount_m,
-                    newest: newestRecord,
-                };
-            } else {
-                return null;
-            }
-        }));
+            })
+        );
 
         jumps = jumps.filter((jump) => jump !== null);
 
@@ -323,5 +328,5 @@ module.exports = {
     updateJumpRecord,
     deleteJump,
     deleteJumpsRecord,
-    updateIfClosed
+    updateIfClosed,
 };
