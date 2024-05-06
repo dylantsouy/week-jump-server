@@ -149,94 +149,78 @@ const getAllJumps = async (req, res) => {
             include: [Stock, JumpsRecord],
         });
 
-        // 更新 closed 欄位
-        // const updateClosedStatus = async (record, jump) => {
-        //     if (record.lastPrice >= jump.Stock.price && !record.closed) {
-        //         await record.update({ closed: true });
-        //     }
-        // };
-
         let result = [];
-        await Promise.all(
-            jumps.forEach(async (jump) => {
-                let newestRecordClosed = null;
-                let newestRecord = null;
-                let newestDate = null;
-                let newestDateClosed = null;
-                let jumpCount_d = 0;
-                let jumpCount_d_c = 0;
-                let jumpCount_w = 0;
-                let jumpCount_w_c = 0;
-                let jumpCount_m = 0;
-                let jumpCount_m_c = 0;
-                const filteredRecords = jump.JumpsRecords.filter((record) => {
-                    if (record.type === 'd') {
-                        if (record.closed === true) {
-                            jumpCount_d_c++;
-                        }
-                        jumpCount_d++;
-                    } else if (record.type === 'w') {
-                        if (record.closed === true) {
-                            jumpCount_w_c++;
-                        }
-                        jumpCount_w++;
-                    } else {
-                        if (record.closed === true) {
-                            jumpCount_m_c++;
-                        }
-                        jumpCount_m++;
+        jumps.forEach(async (jump) => {
+            let newestRecordClosed = null;
+            let newestRecord = null;
+            let newestDateClosed = null;
+            let jumpCount_d = 0;
+            let jumpCount_d_c = 0;
+            let jumpCount_w = 0;
+            let jumpCount_w_c = 0;
+            let jumpCount_m = 0;
+            let jumpCount_m_c = 0;
+            const filteredRecords = jump.JumpsRecords.filter((record) => {
+                if (record.type === 'd') {
+                    if (record.closed === true) {
+                        jumpCount_d_c++;
                     }
-                    if (closed === 'false' && String(record.closed) !== closed) return false;
-
-                    if (date && record.date !== date) return false;
-
-                    if (type && record.type !== type) return false;
-
-                    // updateClosedStatus(record, jump);
-
-                    // 找出最新的 JumpsRecord
-                    if (
-                        (!newestRecord || moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecord, 'YYYYMMDD'))) &&
-                        !record.closed
-                    ) {
-                        newestRecord = record;
-                        newestDate = record.date;
+                    jumpCount_d++;
+                } else if (record.type === 'w') {
+                    if (record.closed === true) {
+                        jumpCount_w_c++;
                     }
-
-                    if (
-                        !newestRecordClosed ||
-                        moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecordClosed, 'YYYYMMDD'))
-                    ) {
-                        newestRecordClosed = record;
-                        newestDateClosed = record.date;
+                    jumpCount_w++;
+                } else {
+                    if (record.closed === true) {
+                        jumpCount_m_c++;
                     }
-                    return true;
+                    jumpCount_m++;
+                }
+                if (closed === 'false' && String(record.closed) !== closed) return false;
+
+                if (date && record.date !== date) return false;
+
+                if (type && record.type !== type) return false;
+
+                // 找出最新的 JumpsRecord
+                if (
+                    (!newestRecord || moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecord, 'YYYYMMDD'))) &&
+                    !record.closed
+                ) {
+                    newestRecord = record;
+                }
+
+                if (
+                    !newestRecordClosed ||
+                    moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecordClosed, 'YYYYMMDD'))
+                ) {
+                    newestRecordClosed = record;
+                    newestDateClosed = record.date;
+                }
+                return true;
+            });
+
+            if (!newestRecord) {
+                newestRecord = newestRecordClosed;
+            }
+
+            let details = {
+                jumpCount_d,
+                jumpCount_w,
+                jumpCount_m,
+                jumpCount_d_c,
+                jumpCount_w_c,
+                jumpCount_m_c,
+            };
+            if (filteredRecords.length) {
+                result.push({
+                    ...jump.toJSON(),
+                    details,
+                    newest: newestRecord,
                 });
-
-                if (!newestRecord) {
-                    newestRecord = newestRecordClosed;
-                    newestDate = newestDateClosed;
-                }
-
-                let record = {
-                    jumpCount_d,
-                    jumpCount_w,
-                    jumpCount_m,
-                    jumpCount_d_c,
-                    jumpCount_w_c,
-                    jumpCount_m_c,
-                };
-
-                if (filteredRecords.length) {
-                    result.push({
-                        ...jump.toJSON(),
-                        newestDate,
-                        record,
-                        newest: newestRecord,
-                    });
-                }
-            })
-        );
+            }
+        });
 
         return res.status(200).json({ data: result, success: true });
     } catch (error) {
