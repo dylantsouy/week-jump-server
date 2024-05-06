@@ -242,9 +242,9 @@ const updateIfClosed = async () => {
             }
         }
 
-        console.log('updateIfClosed task completed successfully');
+        return res.status(200).json({ message: 'updateIfClosed task completed successfully', success: true });
     } catch (error) {
-        console.error('Error running updateIfClosed task:', error);
+        return res.status(500).send({ message: errorHandler(error), success: false });
     }
 };
 
