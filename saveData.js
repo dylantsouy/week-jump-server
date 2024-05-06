@@ -1732,4 +1732,8 @@ const stock_codes = [
     { code: '6785', name: '昱展新藥', industry: '生技' },
 ];
 
+// const stock_codes = [
+//     { code: '6225', name: '天瀚', industry: '光電' },
+// ];
+
 module.exports = { stock_codes };

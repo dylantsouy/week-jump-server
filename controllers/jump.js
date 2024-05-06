@@ -20,13 +20,13 @@ const header = {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
 };
 
-async function fetchData(codeArray, perd, date) {
-    const yahooStockUrl = `https://tw.quote.finance.yahoo.net/quote/q?type=ta&perd=${perd}&mkt=10&sym=${codeArray.code}&v=1&callback=test123`;
+async function fetchData(target, perd, date) {
+    const yahooStockUrl = `https://tw.quote.finance.yahoo.net/quote/q?type=ta&perd=${perd}&mkt=10&sym=${target.code}&v=1&callback=test123`;
     try {
         const response = await axios.get(yahooStockUrl, { headers: header });
-        const text = response.data.replace('test123(', '');
-        const full_text = JSON.parse(text.slice(0, -2));
-        const tickData = full_text['ta'];
+        const data = response.data;
+        const jsonData = JSON.parse(data.substring(data.indexOf('(') + 1, data.lastIndexOf(')')));
+        const tickData = jsonData.ta;
         if (tickData.length > 2) {
             let dateIndex;
             if (perd === 'd') {
@@ -65,13 +65,17 @@ async function fetchData(codeArray, perd, date) {
                 _this = tickData[dateIndex + 1];
                 _last = tickData[dateIndex];
             }
+            if (!_this || !_last) {
+                console.log('not yet open', target);
+                return null;
+            }
             const last_value = _last.v;
             const this_open = _this.o;
             const this_low = _this.l;
             const last_high = _last.h;
             if (this_open > last_high && this_open > 15 && last_value > 100) {
                 let success = {
-                    stockCode: codeArray.code,
+                    stockCode: target.code,
                     lastHight: last_high,
                     thisOpen: this_open,
                     thisLow: this_low,
@@ -81,10 +85,10 @@ async function fetchData(codeArray, perd, date) {
                 console.log('has jump', success);
                 return success;
             }
-            console.log('no jump', codeArray);
+            console.log('no jump', target);
             return null;
         }
-        console.log('tick less than 2', codeArray);
+        console.log('tick less than 2', target);
         return null;
     } catch (error) {
         console.error('Error fetching data:', error);
@@ -99,8 +103,8 @@ const createJumps = async (req, res) => {
             return res.status(400).json({ message: 'please fill required field', success: false });
         }
         const data = [];
-        for (const codeArray of stock_codes) {
-            const result = await fetchData(codeArray, perd, date);
+        for (const target of stock_codes) {
+            const result = await fetchData(target, perd, date);
             if (result) {
                 data.push(result);
             }
@@ -145,28 +149,41 @@ const getAllJumps = async (req, res) => {
             include: [Stock, JumpsRecord],
         });
 
-        // 更新 closed 欄位的邏輯
-        const updateClosedStatus = async (record, jump) => {
-            if (record.lastPrice >= jump.Stock.price && !record.closed) {
-                await record.update({ closed: true });
-            }
-        };
+        // 更新 closed 欄位
+        // const updateClosedStatus = async (record, jump) => {
+        //     if (record.lastPrice >= jump.Stock.price && !record.closed) {
+        //         await record.update({ closed: true });
+        //     }
+        // };
 
-        jumps = await Promise.all(
-            jumps.map(async (jump) => {
+        let result = [];
+        await Promise.all(
+            jumps.forEach(async (jump) => {
                 let newestRecordClosed = null;
                 let newestRecord = null;
                 let newestDate = null;
                 let newestDateClosed = null;
                 let jumpCount_d = 0;
+                let jumpCount_d_c = 0;
                 let jumpCount_w = 0;
+                let jumpCount_w_c = 0;
                 let jumpCount_m = 0;
+                let jumpCount_m_c = 0;
                 const filteredRecords = jump.JumpsRecords.filter((record) => {
                     if (record.type === 'd') {
+                        if (record.closed === true) {
+                            jumpCount_d_c++;
+                        }
                         jumpCount_d++;
                     } else if (record.type === 'w') {
+                        if (record.closed === true) {
+                            jumpCount_w_c++;
+                        }
                         jumpCount_w++;
                     } else {
+                        if (record.closed === true) {
+                            jumpCount_m_c++;
+                        }
                         jumpCount_m++;
                     }
                     if (closed === 'false' && String(record.closed) !== closed) return false;
@@ -174,8 +191,8 @@ const getAllJumps = async (req, res) => {
                     if (date && record.date !== date) return false;
 
                     if (type && record.type !== type) return false;
-                    // 更新 closed 欄位
-                    updateClosedStatus(record, jump);
+
+                    // updateClosedStatus(record, jump);
 
                     // 找出最新的 JumpsRecord
                     if (
@@ -201,24 +218,27 @@ const getAllJumps = async (req, res) => {
                     newestDate = newestDateClosed;
                 }
 
+                let record = {
+                    jumpCount_d,
+                    jumpCount_w,
+                    jumpCount_m,
+                    jumpCount_d_c,
+                    jumpCount_w_c,
+                    jumpCount_m_c,
+                };
+
                 if (filteredRecords.length) {
-                    return {
+                    result.push({
                         ...jump.toJSON(),
                         newestDate,
-                        jumpCount_d,
-                        jumpCount_w,
-                        jumpCount_m,
+                        record,
                         newest: newestRecord,
-                    };
-                } else {
-                    return null;
+                    });
                 }
             })
         );
 
-        jumps = jumps.filter((jump) => jump !== null);
-
-        return res.status(200).json({ data: jumps, success: true });
+        return res.status(200).json({ data: result, success: true });
     } catch (error) {
         return res.status(500).send({ message: errorHandler(error), success: false });
     }
