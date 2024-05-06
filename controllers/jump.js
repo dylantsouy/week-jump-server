@@ -228,7 +228,7 @@ const getAllJumps = async (req, res) => {
     }
 };
 
-const updateIfClosed = async () => {
+const updateIfClosed = async (req, res) => {
     try {
         const jumps = await Jump.findAll({
             include: [Stock, JumpsRecord],
