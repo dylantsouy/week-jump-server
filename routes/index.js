@@ -8,6 +8,10 @@ const JumpControllers = require('../controllers/jump');
 const NewstControllers = require('../controllers/news');
 const verifyToken = require('../middlewares/authJwt');
 
+router.get('/ping', (req, res) => {
+    res.send('pong');
+});
+
 router
     .post('/signin', AdminControllers.signin)
     .post('/signup', AdminControllers.signup)
