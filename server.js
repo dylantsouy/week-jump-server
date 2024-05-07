@@ -21,7 +21,7 @@ cron.schedule('0 8 * * *', async () => {
     }
 });
 
-cron.schedule('*/10 * * * *', () => {
+cron.schedule('*/14 * * * *', () => {
     console.log('Ping!');
     fetch('https://week-jump-dashboard.onrender.com/api/ping')
 });
