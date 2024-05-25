@@ -48,7 +48,6 @@ router.delete('/jumpRecords/:id', [verifyToken], JumpControllers.deleteJumpsReco
 router.delete('/jumps/:id', [verifyToken], JumpControllers.deleteJump);
 router.post('/jumps/updateIfClosed', [verifyToken], JumpControllers.updateIfClosed);
 
-router.post('/observes', [verifyToken], ObserveControllers.createObserve);
 router.post('/observesRecords', [verifyToken], ObserveControllers.createObserveRecord);
 router.get('/observes', [verifyToken], ObserveControllers.getAllObserves);
 router.get('/observesRecords/:observeId', [verifyToken], ObserveControllers.getObservesRecords);

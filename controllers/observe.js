@@ -1,60 +1,39 @@
 const { Observe, Stock, ObservesRecord } = require('../models');
 const { errorHandler } = require('../helpers/responseHelper');
 
-const createObserve = async (req, res) => {
-    try {
-        const { stockCode, initPrice, createdAt } = req.body;
-
-        if (!stockCode || !initPrice || !createdAt) {
-            return res.status(400).json({ message: 'please fill required field', success: false });
-        }
-
-        const existingObserve = await Observe.findOne({ where: { stockCode } });
-        if (existingObserve) {
-            return res.status(400).json({ message: 'Observe with the same stockCode already exists', success: false });
-        }
-
-        const stock = await Stock.findOne({ where: { code: stockCode } });
-        if (!stock) {
-            return res.status(400).json({ message: 'Stock not found', success: false });
-        }
-
-        const body = {
-            stockCode,
-            initPrice,
-            createdAt,
-        };
-
-        const data = await Observe.create(body);
-        return res.status(200).json({ data, success: true });
-    } catch (error) {
-        return res.status(500).json({ message: errorHandler(error), success: false });
-    }
-};
-
 const createObserveRecord = async (req, res) => {
     try {
-        const { date, observeId, type, price } = req.body;
-
-        if (!date || !observeId || !type || !price) {
+        const { date, type, price, stockCode } = req.body;
+        if (!date || !type || !price || !stockCode) {
             return res.status(400).json({ message: 'please fill required field', success: false });
         }
 
-        if (type !== 1 || type !== 2) {
+        const existingStock = await Stock.findOne({ where: { code: stockCode } });
+        if (!existingStock) {
+            return res.status(400).json({ message: 'No Stock existed', success: false });
+        }
+
+        if (parseInt(type) !== 1 && parseInt(type) !== 2) {
             return res.status(400).json({ message: 'Type should be 1 or 2', success: false });
         }
 
-        const existingObserve = await Observe.findOne({ where: { id: observeId } });
+        let existingObserve = await Observe.findOne({ where: { stockCode } });
 
         if (!existingObserve) {
-            return res.status(400).json({ message: 'Observe not found', success: false });
+            const body = {
+                stockCode,
+                initPrice: price,
+                createdAt: date,
+            };
+
+            existingObserve = await Observe.create(body);
         }
 
         const body = {
             date,
-            type,
+            type: parseInt(type),
             price,
-            observeId,
+            observeId: existingObserve.id,
         };
 
         const data = await ObservesRecord.create(body);
@@ -67,6 +46,7 @@ const createObserveRecord = async (req, res) => {
 
 const getAllObserves = async (req, res) => {
     try {
+        const { type } = req.query;
         const data = await Observe.findAll({
             include: [
                 {
@@ -81,7 +61,7 @@ const getAllObserves = async (req, res) => {
             order: [['createdAt', 'ASC']],
         });
 
-        const adjustedData = data.map((item) => {
+        let adjustedData = data.map((item) => {
             const observe1Count = item.ObservesRecords.filter(record => record.type === 1).length;
             const observe2Count = item.ObservesRecords.filter(record => record.type === 2).length;
 
@@ -99,6 +79,17 @@ const getAllObserves = async (req, res) => {
                 updatedAt: item.updatedAt,
             };
         });
+        if (type) {
+            adjustedData = adjustedData.filter(item => {
+                if (parseInt(type) === 1) {
+                    return item.observe1Count > 0;
+                } else if (parseInt(type) === 2) {
+                    return item.observe2Count > 0;
+                } else {
+                    return true;
+                }
+            });
+        }
         return res.status(200).json({ data: adjustedData, success: true });
     } catch (error) {
         return res.status(500).send({ message: errorHandler(error), success: false });
@@ -236,7 +227,6 @@ const deleteObservesRecord = async (req, res) => {
     }
 };
 module.exports = {
-    createObserve,
     getAllObserves,
     updateObserve,
     deleteObserve,
