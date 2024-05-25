@@ -31,9 +31,13 @@ module.exports = (sequelize, DataTypes) => {
                 allowNull: false,
                 type: DataTypes.INTEGER,
                 defaultValue: 1,
-                comment: '1: 觀察, 2: 稍微觀察',
+                comment: '1: 觀察, 2: 稍微觀察, 3: 其他',
             },
             price: {
+                allowNull: false,
+                type: DataTypes.STRING,
+            },
+            reason: {
                 allowNull: false,
                 type: DataTypes.STRING,
             },

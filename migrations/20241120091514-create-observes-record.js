@@ -17,9 +17,13 @@ module.exports = {
                 allowNull: false,
                 type: Sequelize.INTEGER,
                 defaultValue: 1,
-                comment: '1: 觀察, 2: 稍微觀察',
+                comment: '1: 觀察, 2: 稍微觀察, 3: 其他',
             },
             price: {
+                allowNull: false,
+                type: Sequelize.STRING,
+            },
+            reason: {
                 allowNull: false,
                 type: Sequelize.STRING,
             },
