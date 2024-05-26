@@ -55,17 +55,18 @@ const getAllObserves = async (req, res) => {
                 },
                 {
                     model: ObservesRecord,
-                    attributes: ['type'],
+                    attributes: ['type', 'price', 'date', 'reason'],
                 },
             ],
             order: [['createdAt', 'ASC']],
         });
-
         let adjustedData = data.map((item) => {
             const observe1Count = item.ObservesRecords.filter((record) => record.type === 1).length;
             const observe2Count = item.ObservesRecords.filter((record) => record.type === 2).length;
             const observe3Count = item.ObservesRecords.filter((record) => record.type === 3).length;
-
+            const latestRecord = item.ObservesRecords.reduce((latest, current) => {
+                return new Date(current.createdAt) > new Date(latest.createdAt) ? current : latest;
+            }, item.ObservesRecords[0]);
             return {
                 id: item.id,
                 code: item.Stock.code,
@@ -76,6 +77,7 @@ const getAllObserves = async (req, res) => {
                 observe1Count,
                 observe2Count,
                 observe3Count,
+                latestRecord,
                 initPrice: item.initPrice,
                 createdAt: item.createdAt,
                 updatedAt: item.updatedAt,
