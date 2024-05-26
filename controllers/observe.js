@@ -113,10 +113,7 @@ const getObservesRecords = async (req, res) => {
             order: [['date', 'ASC']],
         });
 
-        const observe1 = data.filter((record) => record.type === 1);
-        const observe2 = data.filter((record) => record.type === 2);
-
-        return res.status(200).json({ data: { observe1, observe2 }, success: true });
+        return res.status(200).json({ data, success: true });
     } catch (error) {
         return res.status(500).send({ message: errorHandler(error), success: false });
     }
@@ -176,10 +173,10 @@ const updateObservesRecord = async (req, res) => {
             reason,
         };
 
-        const [updated] = await Observe.update(body, {
+        const [updated] = await ObservesRecord.update(body, {
             where: { id },
         });
-        const data = await Observe.findOne({ where: { id } });
+        const data = await ObservesRecord.findOne({ where: { id } });
         if (updated) {
             return res.status(200).json({ data, success: true });
         } else {
