@@ -225,7 +225,7 @@ const deleteObservesRecord = async (req, res) => {
         const deleted = await ObservesRecord.destroy({
             where: { id },
         });
-        if (deleteAll && type !== 3) {
+        if (deleteAll) {
             await Observe.destroy({
                 where: { id: observeId },
             });

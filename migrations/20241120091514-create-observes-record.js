@@ -24,7 +24,6 @@ module.exports = {
                 type: Sequelize.STRING,
             },
             reason: {
-                allowNull: false,
                 type: Sequelize.STRING,
             },
             observeId: {

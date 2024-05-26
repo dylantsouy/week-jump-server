@@ -38,7 +38,6 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.STRING,
             },
             reason: {
-                allowNull: false,
                 type: DataTypes.STRING,
             },
             observeId: {
