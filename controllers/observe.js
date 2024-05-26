@@ -65,7 +65,7 @@ const getAllObserves = async (req, res) => {
             const observe2Count = item.ObservesRecords.filter((record) => record.type === 2).length;
             const observe3Count = item.ObservesRecords.filter((record) => record.type === 3).length;
             const latestRecord = item.ObservesRecords.reduce((latest, current) => {
-                return new Date(current.createdAt) > new Date(latest.createdAt) ? current : latest;
+                return new Date(current.date) > new Date(latest.date) ? current : latest;
             }, item.ObservesRecords[0]);
             return {
                 id: item.id,
