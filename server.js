@@ -21,10 +21,10 @@ cron.schedule('0 8 * * *', async () => {
     }
 });
 
-// cron.schedule('*/14 * * * *', () => {
-//     console.log('Ping!');
-//     fetch('https://week-jump-dashboard.onrender.com/api/ping')
-// });
+cron.schedule('*/14 * * * *', () => {
+    console.log('Ping!');
+    fetch('https://week-jump-dashboard.onrender.com/api/ping')
+});
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
