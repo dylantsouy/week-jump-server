@@ -338,7 +338,6 @@ const deleteJumpsRecord = async (req, res) => {
         return res.status(500).send({ message: errorHandler(error), success: false });
     }
 };
-
 const deleteJumpsRecords = async (req, res) => {
     try {
         const { ids } = req.body;
@@ -349,43 +348,50 @@ const deleteJumpsRecords = async (req, res) => {
             });
         }
 
-        let allSuccessful = true;
-        for (const id of ids) {
-            const jumpsRecordToDelete = await JumpsRecord.findOne({
-                where: { id },
-            });
-            console.log(jumpsRecordToDelete);
+        // Find all records to delete
+        const jumpsRecordsToDelete = await JumpsRecord.findAll({
+            where: {
+                id: ids,
+            },
+        });
 
-            if (jumpsRecordToDelete) {
-                const jumpId = jumpsRecordToDelete.jumpId;
-                const deleted = await jumpsRecordToDelete.destroy();
-
-                if (deleted) {
-                    const jumpHasRecords = await JumpsRecord.findOne({
-                        where: { jumpId },
-                    });
-
-                    if (!jumpHasRecords) {
-                        await Jump.destroy({
-                            where: { id: jumpId },
-                        });
-                    }
-                } else {
-                    allSuccessful = false;
-                }
-            } else {
-                allSuccessful = false;
-            }
-        }
-
-        if (allSuccessful) {
-            return res.status(200).send({ message: 'Successfully deleted', success: true });
-        } else {
+        if (jumpsRecordsToDelete.length === 0) {
             return res.status(400).send({
-                message: 'Some IDs do not exist',
+                message: 'No valid IDs found',
                 success: false,
             });
         }
+
+        // Collect all jumpIds to check after deletion
+        const jumpIds = jumpsRecordsToDelete.map(record => record.jumpId);
+
+        // Bulk delete records
+        await JumpsRecord.destroy({
+            where: {
+                id: ids,
+            },
+        });
+
+        // Check if any jumps have no more records and delete them
+        const remainingJumpRecords = await JumpsRecord.findAll({
+            where: {
+                jumpId: jumpIds,
+            },
+        });
+
+        const jumpIdsToDelete = jumpIds.filter(jumpId => 
+            !remainingJumpRecords.some(record => record.jumpId === jumpId)
+        );
+
+        if (jumpIdsToDelete.length > 0) {
+            await Jump.destroy({
+                where: {
+                    id: jumpIdsToDelete,
+                },
+            });
+        }
+
+        return res.status(200).send({ message: 'Successfully deleted', success: true });
     } catch (error) {
         return res.status(500).send({ message: errorHandler(error), success: false });
     }
