@@ -339,6 +339,57 @@ const deleteJumpsRecord = async (req, res) => {
     }
 };
 
+const deleteJumpsRecords = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids)) {
+            return res.status(400).send({
+                message: 'Invalid input: ids should be an array',
+                success: false,
+            });
+        }
+
+        let allSuccessful = true;
+        for (const id of ids) {
+            const jumpsRecordToDelete = await JumpsRecord.findOne({
+                where: { id },
+            });
+            console.log(jumpsRecordToDelete);
+
+            if (jumpsRecordToDelete) {
+                const jumpId = jumpsRecordToDelete.jumpId;
+                const deleted = await jumpsRecordToDelete.destroy();
+
+                if (deleted) {
+                    const jumpHasRecords = await JumpsRecord.findOne({
+                        where: { jumpId },
+                    });
+
+                    if (!jumpHasRecords) {
+                        await Jump.destroy({
+                            where: { id: jumpId },
+                        });
+                    }
+                } else {
+                    allSuccessful = false;
+                }
+            } else {
+                allSuccessful = false;
+            }
+        }
+
+        if (allSuccessful) {
+            return res.status(200).send({ message: 'Successfully deleted', success: true });
+        } else {
+            return res.status(400).send({
+                message: 'Some IDs do not exist',
+                success: false,
+            });
+        }
+    } catch (error) {
+        return res.status(500).send({ message: errorHandler(error), success: false });
+    }
+};
 module.exports = {
     createJumps,
     getAllJumps,
@@ -346,4 +397,5 @@ module.exports = {
     deleteJump,
     deleteJumpsRecord,
     updateIfClosed,
+    deleteJumpsRecords
 };

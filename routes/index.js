@@ -45,6 +45,7 @@ router.post('/jumps', [verifyToken], JumpControllers.createJumps);
 router.get('/jumps', [verifyToken], JumpControllers.getAllJumps);
 router.put('/jumpRecords/:id', [verifyToken], JumpControllers.updateJumpRecord);
 router.delete('/jumpRecords/:id', [verifyToken], JumpControllers.deleteJumpsRecord);
+router.delete('/bulkDelete/jumpRecords', [verifyToken], JumpControllers.deleteJumpsRecords);
 router.delete('/jumps/:id', [verifyToken], JumpControllers.deleteJump);
 router.post('/jumps/updateIfClosed', [verifyToken], JumpControllers.updateIfClosed);
 
