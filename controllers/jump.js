@@ -323,60 +323,13 @@ const deleteJumpsRecord = async (req, res) => {
 };
 const deleteJumpsRecords = async (req, res) => {
     try {
-        const { ids } = req.body;
-        if (!ids || !Array.isArray(ids)) {
-            return res.status(400).send({
-                message: 'Invalid input: ids should be an array',
-                success: false,
-            });
-        }
-
-        // Find all records to delete
-        const jumpsRecordsToDelete = await JumpsRecord.findAll({
-            where: {
-                id: ids,
-            },
-        });
-
-        if (jumpsRecordsToDelete.length === 0) {
-            return res.status(400).send({
-                message: 'No valid IDs found',
-                success: false,
-            });
-        }
-
-        // Collect all jumpIds to check after deletion
-        const jumpIds = jumpsRecordsToDelete.map((record) => record.jumpId);
-
-        // Bulk delete records
         await JumpsRecord.destroy({
-            where: {
-                id: ids,
-            },
+            where: {},
+            truncate: true
         });
-
-        // Check if any jumps have no more records and delete them
-        const remainingJumpRecords = await JumpsRecord.findAll({
-            where: {
-                jumpId: jumpIds,
-            },
-        });
-
-        const jumpIdsToDelete = jumpIds.filter(
-            (jumpId) => !remainingJumpRecords.some((record) => record.jumpId === jumpId)
-        );
-
-        if (jumpIdsToDelete.length > 0) {
-            await Jump.destroy({
-                where: {
-                    id: jumpIdsToDelete,
-                },
-            });
-        }
-
-        return res.status(200).send({ message: 'Successfully deleted', success: true });
+        return res.status(200).json({ message: 'All JumpRecords deleted successfully', success: true });
     } catch (error) {
-        return res.status(500).send({ message: errorHandler(error), success: false });
+        return res.status(500).json({ message: errorHandler(error), success: false });
     }
 };
 module.exports = {
