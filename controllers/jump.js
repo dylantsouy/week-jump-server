@@ -162,7 +162,6 @@ const getAllJumps = async (req, res) => {
                     }
                     jumpCount_m++;
                 }
-                if (closed === 'false' && String(record.closed) !== closed) return false;
 
                 if (date && record.date !== date) return false;
 
@@ -190,6 +189,7 @@ const getAllJumps = async (req, res) => {
                         newestDateClosed = record.date;
                     }
                 }
+                if (closed === 'false' && String(record.closed) !== closed) return false;
                 return true;
             });
 
