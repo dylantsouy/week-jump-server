@@ -191,10 +191,8 @@ const getAllJumps = async (req, res) => {
             }
 
             let details = {
-                jumpCount_d,
                 jumpCount_w,
                 jumpCount_m,
-                jumpCount_d_c,
                 jumpCount_w_c,
                 jumpCount_m_c,
             };
