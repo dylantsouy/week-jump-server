@@ -29,9 +29,7 @@ async function fetchData(target, perd, date) {
         const tickData = jsonData.ta;
         if (tickData.length > 2) {
             let dateIndex;
-            if (perd === 'd') {
-                dateIndex = tickData.findIndex((item) => String(item.t) === date);
-            } else if (perd === 'w') {
+            if (perd === 'w') {
                 dateIndex = tickData.findIndex((item) => {
                     const target = moment(item.t, 'YYYYMMDD');
                     const newDate = target.add(3, 'days').format('YYYYMMDD');
@@ -58,13 +56,8 @@ async function fetchData(target, perd, date) {
             }
             let _this;
             let _last;
-            if (perd === 'd') {
-                _this = tickData[dateIndex];
-                _last = tickData[dateIndex - 1];
-            } else {
-                _this = tickData[dateIndex + 1];
-                _last = tickData[dateIndex];
-            }
+            _this = tickData[dateIndex + 1];
+            _last = tickData[dateIndex];
             if (!_this || !_last) {
                 console.log('not yet open', target);
                 return null;
@@ -153,19 +146,12 @@ const getAllJumps = async (req, res) => {
         jumps.forEach(async (jump) => {
             let newestRecordClosed = null;
             let newestRecord = null;
-            let jumpCount_d = 0;
-            let jumpCount_d_c = 0;
             let jumpCount_w = 0;
             let jumpCount_w_c = 0;
             let jumpCount_m = 0;
             let jumpCount_m_c = 0;
             const filteredRecords = jump.JumpsRecords.filter((record) => {
-                if (record.type === 'd') {
-                    if (record.closed === true) {
-                        jumpCount_d_c++;
-                    }
-                    jumpCount_d++;
-                } else if (record.type === 'w') {
+                if (record.type === 'w') {
                     if (record.closed === true) {
                         jumpCount_w_c++;
                     }
@@ -362,7 +348,7 @@ const deleteJumpsRecords = async (req, res) => {
         }
 
         // Collect all jumpIds to check after deletion
-        const jumpIds = jumpsRecordsToDelete.map(record => record.jumpId);
+        const jumpIds = jumpsRecordsToDelete.map((record) => record.jumpId);
 
         // Bulk delete records
         await JumpsRecord.destroy({
@@ -378,8 +364,8 @@ const deleteJumpsRecords = async (req, res) => {
             },
         });
 
-        const jumpIdsToDelete = jumpIds.filter(jumpId => 
-            !remainingJumpRecords.some(record => record.jumpId === jumpId)
+        const jumpIdsToDelete = jumpIds.filter(
+            (jumpId) => !remainingJumpRecords.some((record) => record.jumpId === jumpId)
         );
 
         if (jumpIdsToDelete.length > 0) {
@@ -402,5 +388,5 @@ module.exports = {
     deleteJump,
     deleteJumpsRecord,
     updateIfClosed,
-    deleteJumpsRecords
+    deleteJumpsRecords,
 };

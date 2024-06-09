@@ -12,10 +12,6 @@ module.exports = (sequelize, DataTypes) => {
                 foreignKey: 'targetId',
                 onDelete: 'CASCADE',
             });
-            News.hasMany(models.Tracking, {
-                foreignKey: 'newsId',
-                onUpdate: 'CASCADE',
-            });
         }
     }
     News.init(
