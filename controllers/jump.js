@@ -153,7 +153,6 @@ const getAllJumps = async (req, res) => {
         jumps.forEach(async (jump) => {
             let newestRecordClosed = null;
             let newestRecord = null;
-            let newestDateClosed = null;
             let jumpCount_d = 0;
             let jumpCount_d_c = 0;
             let jumpCount_w = 0;

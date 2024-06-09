@@ -1,4 +1,4 @@
-const { Tracking, News } = require('../models');
+const { Tracking } = require('../models');
 const { errorHandler } = require('../helpers/responseHelper');
 
 const createTracking = async (req, res) => {

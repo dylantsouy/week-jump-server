@@ -113,11 +113,6 @@ const getNews = async (req, res) => {
 
         const data = await News.findOne({
             where: { id: newsId },
-            include: [
-                {
-                    model: Tracking,
-                },
-            ],
         });
 
         return res.status(200).json({ data: data, success: true });
