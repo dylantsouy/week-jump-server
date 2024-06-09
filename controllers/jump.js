@@ -59,7 +59,7 @@ async function fetchData(target, perd, date) {
             _this = tickData[dateIndex + 1];
             _last = tickData[dateIndex];
             if (!_this || !_last) {
-                console.log('not yet open', target);
+                // console.log('not yet open', target);
                 return null;
             }
             const last_value = _last.v;
@@ -75,10 +75,10 @@ async function fetchData(target, perd, date) {
                     date,
                     lastValue: last_value,
                 };
-                console.log('has jump', success);
+                // console.log('has jump', success);
                 return success;
             }
-            console.log('no jump', target);
+            // console.log('no jump', target);
             return null;
         }
         console.log('tick less than 2', target);
@@ -165,32 +165,25 @@ const getAllJumps = async (req, res) => {
 
                 if (date && record.date !== date) return false;
 
-                if (type && record.type !== type) return false;
+                if (type !== 'all' && record.type !== type) return false;
                 if (type === 'all') {
                     // 找出最新的 JumpsRecord
-                    if (
-                        (!newestRecord || moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecord, 'YYYYMMDD'))) &&
-                        !record.closed
-                    ) {
+                    if ((!newestRecord || moment(record.date).isAfter(moment(newestRecord))) && !record.closed) {
                         newestRecord = record;
                     }
 
-                    if (
-                        !newestRecordClosed ||
-                        moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecordClosed, 'YYYYMMDD'))
-                    ) {
+                    if (!newestRecordClosed || moment(record.date).isAfter(moment(newestRecordClosed))) {
                         newestRecordClosed = record;
                         newestDateClosed = record.date;
                     }
                 } else {
                     // 找出當期的 JumpsRecord
-                    if (moment(record.date, 'YYYYMMDD') === date) {
+                    if (record.date === date) {
                         newestRecordClosed = record;
                         newestDateClosed = record.date;
                     }
                 }
-                if (closed === 'false' && String(record.closed) !== closed) return false;
-                return true;
+                return String(record.closed) === closed;
             });
 
             if (!newestRecord) {
@@ -226,7 +219,7 @@ const updateIfClosed = async (req, res) => {
 
         for (const jump of jumps) {
             for (const record of jump.JumpsRecords) {
-                if (record.lastPrice >= jump.Stock.price && !record.closed) {
+                if (record.lastPrice >= +jump.Stock.price && !record.closed) {
                     await record.update({ closed: true });
                 }
             }
