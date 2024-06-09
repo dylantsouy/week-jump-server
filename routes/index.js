@@ -9,10 +9,6 @@ const NewsControllers = require('../controllers/news');
 const ObserveControllers = require('../controllers/observe');
 const verifyToken = require('../middlewares/authJwt');
 
-router.get('/ping', (req, res) => {
-    res.send('pong');
-});
-
 router
     .post('/signin', AdminControllers.signin)
     .post('/signup', AdminControllers.signup)
@@ -36,10 +32,8 @@ router.put('/news/:id', [verifyToken], NewsControllers.updateNews);
 router.delete('/news/:id', [verifyToken], NewsControllers.deleteNews);
 router.get('/targets/:targetId/news/names', [verifyToken], NewsControllers.getAllNames);
 
-router.get('/trackings/:newsId', [verifyToken], TrackingControllers.getAllTrackings);
+router.get('/trackings', TrackingControllers.getAllTrackings);
 router.post('/trackings', [verifyToken], TrackingControllers.createTracking);
-router.put('/trackings/:id', [verifyToken], TrackingControllers.updateTracking);
-router.delete('/trackings/:id', [verifyToken], TrackingControllers.deleteTracking);
 
 router.post('/jumps', [verifyToken], JumpControllers.createJumps);
 router.get('/jumps', [verifyToken], JumpControllers.getAllJumps);

@@ -23,35 +23,6 @@ module.exports = (sequelize, DataTypes) => {
                 primaryKey: true,
                 unique: true,
             },
-            sort:{
-                allowNull: false,
-                type: DataTypes.INTEGER,
-            },
-            date:{
-                allowNull: false,
-                type: DataTypes.DATE,
-            },
-            content:{
-                allowNull: true,
-                type: DataTypes.TEXT,
-            },
-            fromWhere: {
-                allowNull: true,
-                type: DataTypes.STRING,
-            },
-            type: {
-                allowNull: false,
-                type: DataTypes.INTEGER,
-                defaultValue: 1,
-                comment:
-                    '1: 利多, 2: 利空, 3: 中立',
-            },
-            newsId: {
-                type: DataTypes.UUID,
-                validate: {
-                    notEmpty: true,
-                },
-            },
         },
         {
             charset: 'utf8',
