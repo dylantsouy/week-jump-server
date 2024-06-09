@@ -167,21 +167,28 @@ const getAllJumps = async (req, res) => {
                 if (date && record.date !== date) return false;
 
                 if (type && record.type !== type) return false;
+                if (type === 'all') {
+                    // 找出最新的 JumpsRecord
+                    if (
+                        (!newestRecord || moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecord, 'YYYYMMDD'))) &&
+                        !record.closed
+                    ) {
+                        newestRecord = record;
+                    }
 
-                // 找出最新的 JumpsRecord
-                if (
-                    (!newestRecord || moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecord, 'YYYYMMDD'))) &&
-                    !record.closed
-                ) {
-                    newestRecord = record;
-                }
-
-                if (
-                    !newestRecordClosed ||
-                    moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecordClosed, 'YYYYMMDD'))
-                ) {
-                    newestRecordClosed = record;
-                    newestDateClosed = record.date;
+                    if (
+                        !newestRecordClosed ||
+                        moment(record.date, 'YYYYMMDD').isAfter(moment(newestRecordClosed, 'YYYYMMDD'))
+                    ) {
+                        newestRecordClosed = record;
+                        newestDateClosed = record.date;
+                    }
+                } else {
+                    // 找出當期的 JumpsRecord
+                    if (moment(record.date, 'YYYYMMDD') === date) {
+                        newestRecordClosed = record;
+                        newestDateClosed = record.date;
+                    }
                 }
                 return true;
             });
