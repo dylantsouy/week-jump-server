@@ -9,6 +9,10 @@ const NewsControllers = require('../controllers/news');
 const ObserveControllers = require('../controllers/observe');
 const verifyToken = require('../middlewares/authJwt');
 
+router.get('/ping', (req, res) => {
+    res.status(200).send('pong');
+});
+
 router
     .post('/signin', AdminControllers.signin)
     .post('/signup', AdminControllers.signup)
