@@ -3,6 +3,7 @@ const { stock_codes } = require('../saveData');
 const { errorHandler } = require('../helpers/responseHelper');
 const { ContractsRecord, Stock } = require('../models');
 const cheerio = require('cheerio');
+const { Op } = require('sequelize');
 
 const header = {
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -140,12 +141,25 @@ const getAllContracts = async (req, res) => {
     try {
         let { quarter, rank, range } = req.query;
 
-        if (rank && rank !== 'yoy' && rank !== 'qoq' && rank !== 'percentage') {
+        if (rank && rank !== 'yoy' && rank !== 'qoq' && rank !== 'percentage' && rank !== 'all') {
             return res.status(400).json({ message: 'please fill correct rank', success: false });
         }
 
-        let whereCondition = {};
+        if (rank === 'all') {
+            rank = null;
+        }
 
+        if (rank && !range) {
+            range = 50;
+        }
+
+        const rangeValue = parseFloat(range);
+
+        if (rank && isNaN(rangeValue)) {
+            return res.status(400).json({ message: 'please fill correct range', success: false });
+        }
+
+        let whereCondition = {};
         if (quarter) {
             whereCondition['$ContractsRecords.quarter$'] = quarter;
         }
@@ -157,6 +171,15 @@ const getAllContracts = async (req, res) => {
                     model: ContractsRecord,
                     as: 'ContractsRecords',
                     required: false,
+                    where:
+                        rank && range
+                            ? {
+                                  [rank]: {
+                                      [Op.gt]: rangeValue,
+                                  },
+                              }
+                            : {},
+                    attributes: ['quarter', 'yoy', 'qoq', 'percentage', 'contractValue'],
                 },
             ],
         });
@@ -166,33 +189,6 @@ const getAllContracts = async (req, res) => {
                 let stockData = stock.get({ plain: true });
                 stockData.ContractsRecords = stockData.ContractsRecords ? stockData.ContractsRecords[0] : null;
                 return stockData;
-            });
-        }
-
-        if (rank && !range) {
-            range = 50;
-        }
-
-        if (rank && range) {
-            const rangeValue = parseFloat(range);
-            if (isNaN(rangeValue)) {
-                return res.status(400).json({ message: 'please fill correct range', success: false });
-            }
-
-            stocks = stocks.filter((stock) => {
-                const contractRecord = stock.ContractsRecords;
-                if (!contractRecord) return false;
-
-                if (rank === 'qoq' && parseFloat(contractRecord.qoq) > rangeValue) {
-                    return true;
-                }
-                if (rank === 'yoy' && parseFloat(contractRecord.yoy) > rangeValue) {
-                    return true;
-                }
-                if (rank === 'percentage' && parseFloat(contractRecord.percentage) > rangeValue) {
-                    return true;
-                }
-                return false;
             });
         }
 
