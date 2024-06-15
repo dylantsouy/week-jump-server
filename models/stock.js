@@ -1,6 +1,5 @@
 'use strict';
 const { Model } = require('sequelize');
-const { v4: uuidv4 } = require('uuid');
 module.exports = (sequelize, DataTypes) => {
     class Stock extends Model {
         /**
@@ -10,6 +9,11 @@ module.exports = (sequelize, DataTypes) => {
          */
         static associate(models) {
             Stock.hasMany(models.Target, {
+                foreignKey: 'stockCode',
+                onUpdate: "NO ACTION",
+                onDelete: 'NO ACTION',
+            });
+            Stock.hasMany(models.ContractsRecord, {
                 foreignKey: 'stockCode',
                 onUpdate: "NO ACTION",
                 onDelete: 'NO ACTION',

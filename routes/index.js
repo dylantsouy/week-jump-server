@@ -5,6 +5,7 @@ const TrackingControllers = require('../controllers/tracking');
 const AdminControllers = require('../controllers/admin');
 const StockControllers = require('../controllers/stock');
 const JumpControllers = require('../controllers/jump');
+const ContractControllers = require('../controllers/contract');
 const NewsControllers = require('../controllers/news');
 const ObserveControllers = require('../controllers/observe');
 const verifyToken = require('../middlewares/authJwt');
@@ -46,6 +47,10 @@ router.delete('/jumpRecords/:id', [verifyToken], JumpControllers.deleteJumpsReco
 // router.delete('/bulkDelete/jumpRecords', [verifyToken], JumpControllers.deleteJumpsRecords);
 router.delete('/jumps/:id', [verifyToken], JumpControllers.deleteJump);
 router.post('/jumps/updateIfClosed', [verifyToken], JumpControllers.updateIfClosed);
+
+router.post('/contracts', [verifyToken], ContractControllers.createContracts);
+router.get('/contracts', [verifyToken], ContractControllers.getAllContracts);
+router.get('/contracts/:code', [verifyToken], ContractControllers.getContract);
 
 router.post('/observesRecords', [verifyToken], ObserveControllers.createObserveRecord);
 router.get('/observes', [verifyToken], ObserveControllers.getAllObserves);
