@@ -58,7 +58,7 @@ const getAllTargets = async (req, res) => {
                 averagePE: item.averagePE,
                 CAGR: item.CAGR,
                 yield: item.yield,
-                deadline: req.body.deadline,
+                deadline: item.deadline,
                 createdAt: item.createdAt,
                 updatedAt: item.updatedAt,
             };
