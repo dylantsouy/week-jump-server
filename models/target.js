@@ -54,6 +54,9 @@ module.exports = (sequelize, DataTypes) => {
             yield:{
                 type: DataTypes.STRING,
             },
+            deadline:{
+                type: DataTypes.STRING,
+            },
             stockCode: {
                 type: DataTypes.STRING,
                 allowNull: false,

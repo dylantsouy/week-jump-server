@@ -31,6 +31,7 @@ async function fetchData(target, quarter) {
         const rs = $('div.tab-pane section.panel-default header.panel-heading');
         const rs2 = $('table.ecostyle1 tbody tr');
 
+
         if (rs.length > 0 && rs2.length > 0) {
             const tdf = rs2.eq(0).find('td font');
             const td = rs2.eq(0).find('td');

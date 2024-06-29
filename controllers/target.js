@@ -24,6 +24,7 @@ const createTarget = async (req, res) => {
             sort: req.body.sort,
             CAGR: req.body.CAGR,
             yield: req.body.yield,
+            deadline: req.body.deadline,
             createdAt: req.body.createdAt,
         };
 
@@ -57,6 +58,7 @@ const getAllTargets = async (req, res) => {
                 averagePE: item.averagePE,
                 CAGR: item.CAGR,
                 yield: item.yield,
+                deadline: req.body.deadline,
                 createdAt: item.createdAt,
                 updatedAt: item.updatedAt,
             };
@@ -80,6 +82,7 @@ const updateTarget = async (req, res) => {
             sort: req.body.sort,
             CAGR: req.body.CAGR,
             yield: req.body.yield,
+            deadline: req.body.deadline,
             createdAt: req.body.createdAt,
         };
 

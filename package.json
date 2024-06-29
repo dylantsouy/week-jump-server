@@ -34,6 +34,7 @@
         "mysql2": "^2.3.3",
         "node-cron": "^3.0.3",
         "pg": "^8.8.0",
+        "puppeteer": "^22.12.1",
         "read-excel-file": "^5.5.3",
         "sequelize": "^6.37.2",
         "socket.io": "^4.5.3",

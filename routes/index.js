@@ -60,4 +60,5 @@ router.put('/observesRecords/:id', [verifyToken], ObserveControllers.updateObser
 router.delete('/observes/:id', [verifyToken], ObserveControllers.deleteObserve);
 router.delete('/observesRecords/:id', [verifyToken], ObserveControllers.deleteObservesRecord);
 
+
 module.exports = router;
