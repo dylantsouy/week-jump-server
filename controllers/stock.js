@@ -23,13 +23,13 @@ async function fetchData(codeArray) {
     const yahooStockUrl = `https://tw.quote.finance.yahoo.net/quote/q?type=ta&perd=d&mkt=10&sym=${codeArray.code}&v=1&callback=test123`;
     try {
         const response = await axios.get(yahooStockUrl, { headers: header });
-        const text = response.data.replace('test123(', '');
-        const full_text = text.slice(0, -2);
-        const rindex = full_text.lastIndexOf('"ta"');
-        const dindex = full_text.lastIndexOf(',"ex"');
-        const te = full_text.substring(rindex + 5, dindex);
-        const dictData = JSON.parse(te);
-        if (dictData.length > 2) {
+        const jsonpData = response.data;
+        const startIndex = jsonpData.indexOf('{');
+        const endIndex = jsonpData.lastIndexOf('}');
+        const jsonData = jsonpData.substring(startIndex, endIndex + 1);
+        const jsonFinal = JSON.parse(jsonData);
+        const dictData = jsonFinal.ta;
+        if (dictData && dictData.length > 2) {
             const _this = dictData[dictData.length - 1];
             const this_close = _this.c;
             let success = {
@@ -61,7 +61,7 @@ const createStocks = async (req, res) => {
         if (!data.length) {
             return res.status(400).json({ message: 'No data retrieved', success: false });
         }
-        await Stock.bulkCreate(data, { updateOnDuplicate: ['price', 'updatedAt'] });
+        await Stock.bulkCreate(data, { updateOnDuplicate: ['price', 'updatedAt', 'industry'] });
         return res.status(200).json({ message: 'Successful Created', success: true });
     } catch (error) {
         return res.status(500).json({ message: errorHandler(error), success: false });
