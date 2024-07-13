@@ -143,13 +143,21 @@ const getAllJumps = async (req, res) => {
         });
 
         let result = [];
-        jumps.forEach(async (jump) => {
+        let stockJumpCount = {};
+        let industryCount = {};
+        let maxIndustry = {
+            name: null,
+            count: 0,
+        };
+
+        jumps.forEach((jump) => {
             let newestRecordClosed = null;
             let newestRecord = null;
             let jumpCount_w = 0;
             let jumpCount_w_c = 0;
             let jumpCount_m = 0;
             let jumpCount_m_c = 0;
+
             const filteredRecords = jump.JumpsRecords.filter((record) => {
                 if (record.type === 'w') {
                     if (record.closed === true) {
@@ -167,20 +175,16 @@ const getAllJumps = async (req, res) => {
 
                 if (type !== 'all' && record.type !== type) return false;
                 if (type === 'all') {
-                    // 找出最新的 JumpsRecord
                     if ((!newestRecord || moment(record.date).isAfter(moment(newestRecord))) && !record.closed) {
                         newestRecord = record;
                     }
 
                     if (!newestRecordClosed || moment(record.date).isAfter(moment(newestRecordClosed))) {
                         newestRecordClosed = record;
-                        newestDateClosed = record.date;
                     }
                 } else {
-                    // 找出當期的 JumpsRecord
                     if (record.date === date) {
                         newestRecordClosed = record;
-                        newestDateClosed = record.date;
                     }
                 }
                 return String(record.closed) === closed;
@@ -196,6 +200,30 @@ const getAllJumps = async (req, res) => {
                 jumpCount_w_c,
                 jumpCount_m_c,
             };
+
+            const stockCode = jump.Stock.code;
+            const stockIndustry = jump.Stock.industry;
+            if (!stockJumpCount[stockCode]) {
+                stockJumpCount[stockCode] = {
+                    jumpCount_w: 0,
+                    jumpCount_m: 0,
+                    name: jump.Stock.name,
+                    industry: stockIndustry,
+                };
+            }
+
+            if (!industryCount[stockIndustry]) {
+                industryCount[stockIndustry] = 0;
+            }
+            industryCount[stockIndustry] += filteredRecords.length;
+
+            if (industryCount[stockIndustry] > maxIndustry.count) {
+                maxIndustry = {
+                    name: stockIndustry,
+                    count: industryCount[stockIndustry],
+                };
+            }
+
             if (filteredRecords.length) {
                 result.push({
                     ...jump.toJSON(),
@@ -205,9 +233,14 @@ const getAllJumps = async (req, res) => {
             }
         });
 
-        return res.status(200).json({ data: result, success: true });
+        const final = {
+            result,
+            maxIndustry,
+        };
+
+        return res.status(200).json({ data: final, success: true });
     } catch (error) {
-        return res.status(500).send({ message: errorHandler(error), success: false });
+        return res.status(500).send({ message: error.message, success: false });
     }
 };
 
@@ -325,7 +358,7 @@ const deleteJumpsRecords = async (req, res) => {
     try {
         await JumpsRecord.destroy({
             where: {},
-            truncate: true
+            truncate: true,
         });
         return res.status(200).json({ message: 'All JumpRecords deleted successfully', success: true });
     } catch (error) {

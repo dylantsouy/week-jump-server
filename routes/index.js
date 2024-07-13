@@ -8,6 +8,7 @@ const JumpControllers = require('../controllers/jump');
 const ContractControllers = require('../controllers/contract');
 const NewsControllers = require('../controllers/news');
 const ObserveControllers = require('../controllers/observe');
+const QuoteControllers = require('../controllers/quote');
 const verifyToken = require('../middlewares/authJwt');
 
 router.get('/ping', (req, res) => {
@@ -60,5 +61,10 @@ router.put('/observesRecords/:id', [verifyToken], ObserveControllers.updateObser
 router.delete('/observes/:id', [verifyToken], ObserveControllers.deleteObserve);
 router.delete('/observesRecords/:id', [verifyToken], ObserveControllers.deleteObservesRecord);
 
+
+router.get('/quotes', [verifyToken], QuoteControllers.getAllQuotes);
+router.post('/quotes', [verifyToken], QuoteControllers.createQuote);
+router.put('/quotes/:id', [verifyToken], QuoteControllers.updateQuote);
+router.delete('/quotes/:id', [verifyToken], QuoteControllers.deleteQuote);
 
 module.exports = router;
