@@ -16,7 +16,15 @@ module.exports = {
                 defaultValue: 'd',
                 comment: 'd: 日跳, w: 周跳, m: 月跳',
             },
-            price: {
+            lastValue: {
+                allowNull: false,
+                type: Sequelize.INTEGER,
+            },
+            lastPrice: {
+                allowNull: false,
+                type: Sequelize.FLOAT,
+            },
+            jumpPrice: {
                 allowNull: false,
                 type: Sequelize.FLOAT,
             },

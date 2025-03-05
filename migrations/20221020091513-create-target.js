@@ -27,7 +27,7 @@ module.exports = {
             eps:{
                 type: Sequelize.JSON,
             },
-            avergePE:{
+            averagePE:{
                 type: Sequelize.STRING,
             },
             CAGR:{
@@ -45,6 +45,9 @@ module.exports = {
                 key: 'code',
                 as: 'stockCode',
               }
+            },
+            deadline:{
+                type: Sequelize.STRING,
             },
             createdAt: {
                 allowNull: false,

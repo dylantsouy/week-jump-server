@@ -23,6 +23,10 @@ module.exports = {
                 allowNull: false,
                 type: Sequelize.STRING,
             },
+            reason: {
+                allowNull: false,
+                type: Sequelize.STRING,
+            },
             observeId: {
                 allowNull: false,
                 type: Sequelize.UUID,

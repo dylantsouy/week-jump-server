@@ -1,7 +1,6 @@
 const { Router } = require('express');
 const router = Router();
 const TargetControllers = require('../controllers/target');
-const TrackingControllers = require('../controllers/tracking');
 const AdminControllers = require('../controllers/admin');
 const StockControllers = require('../controllers/stock');
 const JumpControllers = require('../controllers/jump');
@@ -37,9 +36,6 @@ router.post('/news', [verifyToken], NewsControllers.createNews);
 router.put('/news/:id', [verifyToken], NewsControllers.updateNews);
 router.delete('/news/:id', [verifyToken], NewsControllers.deleteNews);
 router.get('/targets/:targetId/news/names', [verifyToken], NewsControllers.getAllNames);
-
-router.get('/trackings', TrackingControllers.getAllTrackings);
-router.post('/trackings', [verifyToken], TrackingControllers.createTracking);
 
 router.post('/jumps', [verifyToken], JumpControllers.createJumps);
 router.get('/jumps', [verifyToken], JumpControllers.getAllJumps);

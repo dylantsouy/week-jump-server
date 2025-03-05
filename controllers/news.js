@@ -1,4 +1,4 @@
-const { News, Target, Tracking } = require('../models');
+const { News, Target } = require('../models');
 const { errorHandler } = require('../helpers/responseHelper');
 
 const createNews = async (req, res) => {
