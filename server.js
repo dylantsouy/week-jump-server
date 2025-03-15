@@ -24,7 +24,13 @@ cron.schedule('0 8 * * *', async () => {
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-app.use(cors());
+const corsOptions = {
+    origin: ['https://dylantsouy.github.io'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true, 
+};
+
+app.use(cors(corsOptions));
 
 app.use('/api', routes);
 
