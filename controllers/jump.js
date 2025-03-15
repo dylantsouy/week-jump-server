@@ -144,11 +144,11 @@ const getAllJumps = async (req, res) => {
 
         let result = [];
         let stockJumpCount = {};
-        let industryCount = {};
-        let maxIndustry = {
-            name: null,
-            count: 0,
-        };
+        // let industryCount = {};
+        // let maxIndustry = {
+        //     name: null,
+        //     count: 0,
+        // };
 
         jumps.forEach((jump) => {
             let newestRecordClosed = null;
@@ -212,17 +212,17 @@ const getAllJumps = async (req, res) => {
                 };
             }
 
-            if (!industryCount[stockIndustry]) {
-                industryCount[stockIndustry] = 0;
-            }
-            industryCount[stockIndustry] += filteredRecords.length;
+            // if (!industryCount[stockIndustry]) {
+            //     industryCount[stockIndustry] = 0;
+            // }
+            // industryCount[stockIndustry] += filteredRecords.length;
 
-            if (industryCount[stockIndustry] > maxIndustry.count) {
-                maxIndustry = {
-                    name: stockIndustry,
-                    count: industryCount[stockIndustry],
-                };
-            }
+            // if (industryCount[stockIndustry] > maxIndustry.count) {
+            //     maxIndustry = {
+            //         name: stockIndustry,
+            //         count: industryCount[stockIndustry],
+            //     };
+            // }
 
             if (filteredRecords.length) {
                 result.push({
@@ -235,7 +235,7 @@ const getAllJumps = async (req, res) => {
 
         const final = {
             result,
-            maxIndustry,
+            // maxIndustry,
         };
 
         return res.status(200).json({ data: final, success: true });

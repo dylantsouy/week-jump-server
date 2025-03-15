@@ -43,10 +43,10 @@ const createObserveRecord = async (req, res) => {
         return res.status(500).json({ message: errorHandler(error), success: false });
     }
 };
-
 const getAllObserves = async (req, res) => {
     try {
         const { type } = req.query;
+
         const data = await Observe.findAll({
             include: [
                 {
@@ -60,45 +60,40 @@ const getAllObserves = async (req, res) => {
             ],
             order: [['createdAt', 'ASC']],
         });
-        let adjustedData = data.map((item) => {
-            const observe1Count = item.ObservesRecords.filter((record) => record.type === 1).length;
-            const observe2Count = item.ObservesRecords.filter((record) => record.type === 2).length;
-            const observe3Count = item.ObservesRecords.filter((record) => record.type === 3).length;
-            const latestRecord = item.ObservesRecords.reduce((latest, current) => {
-                return new Date(current.date) > new Date(latest.date) ? current : latest;
-            }, item.ObservesRecords[0]);
-            return {
-                id: item.id,
-                code: item.Stock.code,
-                name: item.Stock.name,
-                industry: item.Stock.industry,
-                price: item.Stock.price,
-                stockUpdatedAt: item.Stock.updatedAt,
-                observe1Count,
-                observe2Count,
-                observe3Count,
-                latestRecord,
-                initPrice: item.initPrice,
-                createdAt: item.createdAt,
-                updatedAt: item.updatedAt,
-            };
-        });
-        if (type) {
-            adjustedData = adjustedData.filter((item) => {
-                if (parseInt(type) === 1) {
-                    return item.observe1Count > 0;
-                } else if (parseInt(type) === 2) {
-                    return item.observe2Count > 0;
-                } else if (parseInt(type) === 3) {
-                    return item.observe3Count > 0;
-                } else {
-                    return true;
-                }
+
+        // 過濾及整理數據
+        const adjustedData = data
+            .map((item) => {
+                let latestRecord = null;
+
+                // 找到最新的紀錄
+                item.ObservesRecords.forEach((record) => {
+                    if (!latestRecord || new Date(record.date) > new Date(latestRecord.date)) {
+                        latestRecord = record;
+                    }
+                });
+
+                return {
+                    id: item.id,
+                    code: item.Stock.code,
+                    name: item.Stock.name,
+                    industry: item.Stock.industry,
+                    price: item.Stock.price,
+                    stockUpdatedAt: item.Stock.updatedAt,
+                    latestRecord,
+                    initPrice: item.initPrice,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt,
+                };
+            })
+            .filter((item) => {
+                if (!type) return true;
+                return item.latestRecord?.type === parseInt(type);
             });
-        }
+
         return res.status(200).json({ data: adjustedData, success: true });
     } catch (error) {
-        return res.status(500).send({ message: errorHandler(error), success: false });
+        return res.status(500).json({ message: errorHandler(error), success: false });
     }
 };
 
