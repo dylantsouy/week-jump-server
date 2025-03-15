@@ -115,12 +115,10 @@ async function fetchData(target, perd, date) {
                     date,
                     lastValue: last_value,
                 };
-                console.log(`Found jump for ${target.code} on date ${date}`);
                 return success;
             }
             return null;
         }
-        console.log(`Insufficient tick data for ${target.code}, length: ${tickData.length}`);
         return null;
     }  catch (error) {
         console.error('Error fetching data for', target.code, ':', error.message);
