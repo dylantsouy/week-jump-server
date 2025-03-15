@@ -27,8 +27,11 @@ async function fetchData(target, perd, date) {
         const data = response.data;
         const jsonData = JSON.parse(data.substring(data.indexOf('(') + 1, data.lastIndexOf(')')));
         const tickData = jsonData.ta;
+        
         if (tickData.length > 2) {
-            let dateIndex;
+            let dateIndex = -1;
+            
+            // 週線處理邏輯保持不變
             if (perd === 'w') {
                 dateIndex = tickData.findIndex((item) => {
                     const target = moment(item.t, 'YYYYMMDD');
@@ -36,28 +39,48 @@ async function fetchData(target, perd, date) {
                     return newDate === date;
                 });
             } else {
-                dateIndex = tickData.findIndex((item) => {
-                    const find = moment(date).subtract(1, 'days');
-                    if (find.weekday() >= 1 && find.weekday() <= 5) {
-                        let newDate = find.format('YYYYMMDD');
-                        return newDate === String(item.t);
-                    } else {
-                        let newDate;
-                        while (find.weekday() === 0 || find.weekday() === 6) {
-                            newDate = find.subtract(1, 'days').format('YYYYMMDD');
-                        }
-                        return newDate === String(item.t);
-                    }
+                // 尋找最接近但不超過目標日期的交易日
+                const targetDateNum = parseInt(date);
+                
+                // 對 tickData 按日期排序（假設已按日期排好）
+                // 找到最接近但不大於目標日期的交易日
+                const availableDates = tickData.map(item => parseInt(item.t)).sort((a, b) => a - b);
+                
+                // 記錄每個可用日期在原始 tickData 中的索引
+                const dateToIndexMap = {};
+                tickData.forEach((item, index) => {
+                    dateToIndexMap[parseInt(item.t)] = index;
                 });
+                
+                
+                // 找到最接近目標日期的可用日期
+                let closestDate = null;
+                for (const availableDate of availableDates) {
+                    if (availableDate <= targetDateNum && (!closestDate || availableDate > closestDate)) {
+                        closestDate = availableDate;
+                    }
+                }
+                
+                if (closestDate) {
+                    dateIndex = dateToIndexMap[closestDate];
+                }
             }
+            
             if (dateIndex === -1) {
                 console.log('date error', date);
                 return null;
             }
+            
             let _this;
             let _last;
+            
+            if (dateIndex + 1 >= tickData.length) {
+                return null;
+            }
+            
             _this = tickData[dateIndex + 1];
             _last = tickData[dateIndex];
+            
             if (!_this || !_last) {
                 // console.log('not yet open', target);
                 return null;
@@ -66,6 +89,7 @@ async function fetchData(target, perd, date) {
             const this_open = _this.o;
             const this_low = _this.l;
             const last_high = _last.h;
+            
             if (this_open > last_high && this_open > 15 && last_value > 100) {
                 let success = {
                     stockCode: target.code,
@@ -84,7 +108,7 @@ async function fetchData(target, perd, date) {
         console.log('tick less than 2', target);
         return null;
     } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching data for', target.code, ':', error.message);
         return null;
     }
 }
