@@ -30,30 +30,50 @@ async function fetchData(target, perd, date) {
         
         if (tickData.length > 2) {
             let dateIndex = -1;
+            const targetDateNum = parseInt(date);
             
-            // 週線處理邏輯保持不變
+            // 對 tickData 按日期排序（假設已按日期排好）
+            const availableDates = tickData.map(item => parseInt(item.t)).sort((a, b) => a - b);
+            
+            // 記錄每個可用日期在原始 tickData 中的索引
+            const dateToIndexMap = {};
+            tickData.forEach((item, index) => {
+                dateToIndexMap[parseInt(item.t)] = index;
+            });
+            
+            
+            // 週線和月線使用統一的查找方法，但有不同的日期處理邏輯
             if (perd === 'w') {
-                dateIndex = tickData.findIndex((item) => {
-                    const target = moment(item.t, 'YYYYMMDD');
-                    const newDate = target.add(3, 'days').format('YYYYMMDD');
-                    return newDate === date;
-                });
+                // 計算可能的日期範圍：從每個交易日+3天，看是否與目標日期匹配
+                for (const availableDate of availableDates) {
+                    const adjDate = moment(availableDate.toString(), 'YYYYMMDD').add(3, 'days').format('YYYYMMDD');
+                    
+                    // 檢查調整後的日期是否符合目標日期
+                    if (adjDate === date) {
+                        dateIndex = dateToIndexMap[availableDate];
+                        break;
+                    }
+                }
+                
+                // 如果沒有找到精確匹配，查找最接近的日期
+                if (dateIndex === -1) {
+                    // 將目標日期減去3天，尋找最接近的交易日
+                    const targetMinusThree = moment(date, 'YYYYMMDD').subtract(3, 'days').format('YYYYMMDD');
+                    const targetMinusThreeNum = parseInt(targetMinusThree);
+                    
+                    let closestDate = null;
+                    for (const availableDate of availableDates) {
+                        if (availableDate <= targetMinusThreeNum && (!closestDate || availableDate > closestDate)) {
+                            closestDate = availableDate;
+                        }
+                    }
+                    
+                    if (closestDate) {
+                        dateIndex = dateToIndexMap[closestDate];
+                    }
+                }
             } else {
-                // 尋找最接近但不超過目標日期的交易日
-                const targetDateNum = parseInt(date);
-                
-                // 對 tickData 按日期排序（假設已按日期排好）
-                // 找到最接近但不大於目標日期的交易日
-                const availableDates = tickData.map(item => parseInt(item.t)).sort((a, b) => a - b);
-                
-                // 記錄每個可用日期在原始 tickData 中的索引
-                const dateToIndexMap = {};
-                tickData.forEach((item, index) => {
-                    dateToIndexMap[parseInt(item.t)] = index;
-                });
-                
-                
-                // 找到最接近目標日期的可用日期
+                // 月線：找到最接近但不超過目標日期的交易日
                 let closestDate = null;
                 for (const availableDate of availableDates) {
                     if (availableDate <= targetDateNum && (!closestDate || availableDate > closestDate)) {
@@ -67,22 +87,18 @@ async function fetchData(target, perd, date) {
             }
             
             if (dateIndex === -1) {
-                console.log('date error', date);
                 return null;
             }
             
-            let _this;
-            let _last;
-            
+            // 確保索引是有效的
             if (dateIndex + 1 >= tickData.length) {
                 return null;
             }
             
-            _this = tickData[dateIndex + 1];
-            _last = tickData[dateIndex];
+            const _this = tickData[dateIndex + 1];
+            const _last = tickData[dateIndex];
             
             if (!_this || !_last) {
-                // console.log('not yet open', target);
                 return null;
             }
             const last_value = _last.v;
@@ -99,15 +115,14 @@ async function fetchData(target, perd, date) {
                     date,
                     lastValue: last_value,
                 };
-                // console.log('has jump', success);
+                console.log(`Found jump for ${target.code} on date ${date}`);
                 return success;
             }
-            // console.log('no jump', target);
             return null;
         }
-        console.log('tick less than 2', target);
+        console.log(`Insufficient tick data for ${target.code}, length: ${tickData.length}`);
         return null;
-    } catch (error) {
+    }  catch (error) {
         console.error('Error fetching data for', target.code, ':', error.message);
         return null;
     }
