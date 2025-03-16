@@ -39,6 +39,7 @@ router.get('/targets/:targetId/news/names', [verifyToken], NewsControllers.getAl
 
 router.post('/jumps', [verifyToken], JumpControllers.createJumps);
 router.get('/jumps', [verifyToken], JumpControllers.getAllJumps);
+router.get('/jumps/:id', [verifyToken], JumpControllers.getJumpRecord);
 router.put('/jumpRecords/:id', [verifyToken], JumpControllers.updateJumpRecord);
 router.delete('/jumpRecords/:id', [verifyToken], JumpControllers.deleteJumpsRecord);
 // router.delete('/bulkDelete/jumpRecords', [verifyToken], JumpControllers.deleteJumpsRecords);
@@ -50,6 +51,7 @@ router.get('/contracts', [verifyToken], ContractControllers.getAllContracts);
 router.get('/contracts/:code', [verifyToken], ContractControllers.getContract);
 
 router.post('/observesRecords', [verifyToken], ObserveControllers.createObserveRecord);
+router.get('/observes/:id', [verifyToken], ObserveControllers.getObserveById);
 router.get('/observes', [verifyToken], ObserveControllers.getAllObserves);
 router.get('/observesRecords/:observeId', [verifyToken], ObserveControllers.getObservesRecords);
 router.put('/observes/:id', [verifyToken], ObserveControllers.updateObserve);

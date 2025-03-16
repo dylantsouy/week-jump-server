@@ -43,6 +43,59 @@ const createObserveRecord = async (req, res) => {
         return res.status(500).json({ message: errorHandler(error), success: false });
     }
 };
+const getObserveById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!id) {
+            return res.status(400).json({ message: "Observe ID is required", success: false });
+        }
+
+        const observe = await Observe.findOne({
+            where: { stockCode: id },
+            include: [
+                {
+                    model: Stock,
+                    attributes: ['code', 'name', 'industry', 'price', 'updatedAt'],
+                },
+                {
+                    model: ObservesRecord,
+                    attributes: ['type', 'price', 'date', 'reason'],
+                },
+            ],
+        });
+
+        if (!observe) {
+            return res.status(200).json({ message: "Observe record not found",data:{}, success: false });
+        }
+
+        let latestRecord = null;
+        observe.ObservesRecords.forEach((record) => {
+            if (!latestRecord || new Date(record.date) > new Date(latestRecord.date)) {
+                latestRecord = record;
+            }
+        });
+
+        const result = {
+            id: observe.id,
+            code: observe.Stock.code,
+            name: observe.Stock.name,
+            industry: observe.Stock.industry,
+            price: observe.Stock.price,
+            stockUpdatedAt: observe.Stock.updatedAt,
+            latestRecord,
+            initPrice: observe.initPrice,
+            createdAt: observe.createdAt,
+            updatedAt: observe.updatedAt,
+            records: observe.ObservesRecords, 
+        };
+
+        return res.status(200).json({ data: result, success: true });
+    } catch (error) {
+        console.error("Error in getObserveById:", error);
+        return res.status(500).json({ message: errorHandler(error), success: false });
+    }
+};
 const getAllObserves = async (req, res) => {
     try {
         const { type } = req.query;
@@ -243,4 +296,5 @@ module.exports = {
     getObservesRecords,
     updateObservesRecord,
     deleteObservesRecord,
+    getObserveById
 };

@@ -171,6 +171,72 @@ const createJumps = async (req, res) => {
         return res.status(500).json({ message: errorHandler(error), success: false });
     }
 };
+const getJumpRecord = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ message: "Stock code is required", success: false });
+        }
+
+        // Fix: Properly define the association query
+        let jump = await Jump.findOne({
+            include: [
+                {
+                    model: Stock,
+                    where: { code: id },
+                    required: true
+                },
+                {
+                    model: JumpsRecord,
+                    required: false
+                }
+            ]
+        });
+
+        if (!jump) {
+            return res.status(200).json({ message: "Jump record not found", data: {}, success: true });
+        }
+
+        let newestRecord = null;
+        let newestRecordClosed = null;
+        let jumpCount_w = 0;
+        let jumpCount_w_c = 0;
+        let jumpCount_m = 0;
+        let jumpCount_m_c = 0;
+
+        jump.JumpsRecords.forEach(record => {
+            if (record.type === 'w') {
+                if (record.closed) jumpCount_w_c++;
+                jumpCount_w++;
+            } else {
+                if (record.closed) jumpCount_m_c++;
+                jumpCount_m++;
+            }
+
+            if ((!newestRecord || moment(record.date).isAfter(moment(newestRecord.date))) && !record.closed) {
+                newestRecord = record;
+            }
+
+            if (!newestRecordClosed || moment(record.date).isAfter(moment(newestRecordClosed.date))) {
+                newestRecordClosed = record;
+            }
+        });
+
+        if (!newestRecord) {
+            newestRecord = newestRecordClosed;
+        }
+
+        let result = {
+            ...jump.toJSON(),
+            details: { jumpCount_w, jumpCount_m, jumpCount_w_c, jumpCount_m_c },
+            newest: newestRecord,
+        };
+
+        return res.status(200).json({ data: result, success: true });
+    } catch (error) {
+        return res.status(500).json({ message: error.message, success: false });
+    }
+};
 
 const getAllJumps = async (req, res) => {
     try {
@@ -410,4 +476,5 @@ module.exports = {
     deleteJumpsRecord,
     updateIfClosed,
     deleteJumpsRecords,
+    getJumpRecord
 };
