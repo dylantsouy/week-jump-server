@@ -58,7 +58,6 @@ async function fetchData(target, quarter) {
                                 qoq,
                                 yoy,
                             };
-                            console.log(success);
                             return success;
                         }
                     }
