@@ -118,9 +118,21 @@ const getAllObserves = async (req, res) => {
         const adjustedData = data
             .map((item) => {
                 let latestRecord = null;
-
-                // 找到最新的紀錄
+                
+                // 初始化所有可能的 type 為 0
+                // 假設你的 type 範圍是 1-5，可以根據實際情況調整
+                const typeCount = {
+                    1: 0,
+                    2: 0,
+                    3: 0,
+                };
+                
+                // 計算每種 type 的出現次數
                 item.ObservesRecords.forEach((record) => {
+                    const recordType = record.type;
+                    typeCount[recordType] = (typeCount[recordType] || 0) + 1;
+                    
+                    // 找到最新的紀錄
                     if (!latestRecord || new Date(record.date) > new Date(latestRecord.date)) {
                         latestRecord = record;
                     }
@@ -137,6 +149,7 @@ const getAllObserves = async (req, res) => {
                     initPrice: item.initPrice,
                     createdAt: item.createdAt,
                     updatedAt: item.updatedAt,
+                    typeCount, // 添加 type 計數，包含所有可能的 type
                 };
             })
             .filter((item) => {
