@@ -22,7 +22,6 @@ const header = {
     'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
 };
-
 async function fetchData(target, quarter) {
     const contractUrl = `https://www.istock.tw/stock/${target.code}/contract-liability`;
     try {
@@ -31,31 +30,37 @@ async function fetchData(target, quarter) {
         const rs = $('div.tab-pane section.panel-default header.panel-heading');
         const rs2 = $('table.ecostyle1 tbody tr');
 
-
+        // Loop through all rows to find the matching quarter
         if (rs.length > 0 && rs2.length > 0) {
-            const tdf = rs2.eq(0).find('td font');
-            const td = rs2.eq(0).find('td');
-
-            if (tdf.length > 0) {
-                let date = td.eq(0).text();
-                let cleaned_date = date.replace(/\s?\(\d+\)/, '');
-                let contractValue = td.eq(1).text() || '0';
-                let qoq = td.eq(2).text() || '0';
-                let yoy = td.eq(3).text() || '0';
-                let stg = rs.eq(0).text();
-                let index = stg.indexOf(':');
-                if (cleaned_date === quarter) {
-                    if (index !== -1) {
-                        let percentage = stg.substring(index + 2, stg.length - 1);
-                        let success = {
-                            stockCode: target.code,
-                            percentage,
-                            contractValue,
-                            qoq,
-                            yoy,
-                        };
-                        // console.log('has contract', success);
-                        return success;
+            // Try to find the exact quarter in the table
+            for (let i = 0; i < rs2.length; i++) {
+                const row = rs2.eq(i);
+                const td = row.find('td');
+                
+                if (td.length >= 4) {
+                    let date = td.eq(0).text();
+                    let cleaned_date = date.replace(/\s?\(\d+\)/, '').trim();
+                    
+                    // If this row has the quarter we're looking for
+                    if (cleaned_date === quarter) {
+                        let contractValue = td.eq(1).text() || '0';
+                        let qoq = td.eq(2).text() || '0';
+                        let yoy = td.eq(3).text() || '0';
+                        let stg = rs.eq(0).text();
+                        let index = stg.indexOf(':');
+                        
+                        if (index !== -1) {
+                            let percentage = stg.substring(index + 2, stg.length - 1);
+                            let success = {
+                                stockCode: target.code,
+                                percentage,
+                                contractValue,
+                                qoq,
+                                yoy,
+                            };
+                            console.log(success);
+                            return success;
+                        }
                     }
                 }
             }
@@ -66,7 +71,6 @@ async function fetchData(target, quarter) {
         return null;
     }
 }
-
 const createContracts = async (req, res) => {
     try {
         const { quarter } = req.body;
