@@ -426,6 +426,40 @@ const deleteJump = async (req, res) => {
         return res.status(500).send({ message: errorHandler(error), success: false });
     }
 };
+const bulkDeleteJumps = async (req, res) => {
+    try {
+      const { ids } = req.body; 
+      
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).send({
+          message: 'IDs format error',
+          success: false
+        });
+      }
+      
+      const deletedCount = await Jump.destroy({
+        where: { id: ids } 
+      });
+      
+      if (deletedCount > 0) {
+        return res.status(200).send({
+          message: `Successful deleted`,
+          success: true,
+          deletedCount
+        });
+      } else {
+        return res.status(400).send({
+          message: 'ID does not exists',
+          success: false
+        });
+      }
+    } catch (error) {
+      return res.status(500).send({
+        message: errorHandler(error),
+        success: false
+      });
+    }
+  };
 
 const deleteJumpsRecord = async (req, res) => {
     try {
@@ -476,5 +510,6 @@ module.exports = {
     deleteJumpsRecord,
     updateIfClosed,
     deleteJumpsRecords,
-    getJumpRecord
+    getJumpRecord,
+    bulkDeleteJumps
 };

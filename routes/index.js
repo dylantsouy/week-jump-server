@@ -44,10 +44,12 @@ router.put('/jumpRecords/:id', [verifyToken], JumpControllers.updateJumpRecord);
 router.delete('/jumpRecords/:id', [verifyToken], JumpControllers.deleteJumpsRecord);
 // router.delete('/bulkDelete/jumpRecords', [verifyToken], JumpControllers.deleteJumpsRecords);
 router.delete('/jumps/:id', [verifyToken], JumpControllers.deleteJump);
+router.delete('/bulkDeleteJumps', [verifyToken], JumpControllers.bulkDeleteJumps);
 router.post('/jumps/updateIfClosed', [verifyToken], JumpControllers.updateIfClosed);
 
 router.post('/contracts', [verifyToken], ContractControllers.createContracts);
 router.get('/contracts', [verifyToken], ContractControllers.getAllContracts);
+router.delete('/bulkDeleteContract', [verifyToken], ContractControllers.bulkDeleteContract);
 router.get('/contracts/:code', [verifyToken], ContractControllers.getContract);
 
 router.post('/observesRecords', [verifyToken], ObserveControllers.createObserveRecord);

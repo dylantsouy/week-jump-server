@@ -138,6 +138,40 @@ const getContract = async (req, res) => {
     }
 };
 
+const bulkDeleteContract = async (req, res) => {
+    try {
+      const { ids } = req.body; 
+      
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).send({
+          message: 'IDs format error',
+          success: false
+        });
+      }
+      
+      const deletedCount = await ContractsRecord.destroy({
+        where: { id: ids } 
+      });
+      
+      if (deletedCount > 0) {
+        return res.status(200).send({
+          message: `Successful deleted`,
+          success: true,
+          deletedCount
+        });
+      } else {
+        return res.status(400).send({
+          message: 'ID does not exists',
+          success: false
+        });
+      }
+    } catch (error) {
+      return res.status(500).send({
+        message: errorHandler(error),
+        success: false
+      });
+    }
+  };
 const getAllContracts = async (req, res) => {
     try {
         let { quarter, rank, range } = req.query;
@@ -180,7 +214,7 @@ const getAllContracts = async (req, res) => {
                                   },
                               }
                             : {},
-                    attributes: ['quarter', 'yoy', 'qoq', 'percentage', 'contractValue'],
+                    attributes: ['quarter', 'yoy', 'qoq', 'percentage', 'contractValue','id'],
                 },
             ],
         });
@@ -203,4 +237,5 @@ module.exports = {
     createContracts,
     getAllContracts,
     getContract,
+    bulkDeleteContract
 };
