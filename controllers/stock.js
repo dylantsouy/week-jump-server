@@ -70,9 +70,10 @@ const createStocks = async (req, res) => {
 
 const getAllStockCodes = async (req, res) => {
     try {
-        const stocks = await Stock.findAll({ attributes: ['code', 'name'] });
+        const stocks = await Stock.findAll({ attributes: ['code', 'name','price'] });
         const stockCodes = stocks.map((stock) => {
-            return { code: stock.code, name: stock.name };
+            
+            return { code: stock.code, name: stock.name, price:stock.price};
         });
         return res.status(200).json({ data: stockCodes, success: true });
     } catch (error) {
