@@ -814,7 +814,7 @@ const stock_codes = [
     { code: '1457', name: '宜進', industry: '紡織' },
     { code: '1459', name: '聯發', industry: '紡織' },
     { code: '1460', name: '宏遠', industry: '紡織' },
-    { code: '1463', name: '強盛', industry: '紡織' },
+    { code: '1463', name: '強盛新', industry: '紡織' },
     { code: '1464', name: '得力', industry: '紡織' },
     { code: '1465', name: '偉全', industry: '紡織' },
     { code: '1466', name: '聚隆', industry: '紡織' },

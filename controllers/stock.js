@@ -38,10 +38,10 @@ async function fetchData(codeArray) {
                 industry: codeArray.industry,
                 price: this_close.toString(),
             };
-            console.log('success', success);
+            // console.log('success', success);
             return success;
         }
-        console.log('null', codeArray);
+        // console.log('null', codeArray);
         return null;
     } catch (error) {
         console.error('Error fetching data:', error);
