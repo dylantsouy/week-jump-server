@@ -95,11 +95,10 @@ const getObserveById = async (req, res) => {
         console.error("Error in getObserveById:", error);
         return res.status(500).json({ message: errorHandler(error), success: false });
     }
-};
-const getAllObserves = async (req, res) => {
+};const getAllObserves = async (req, res) => {
     try {
-        const { type } = req.query;
-
+        const { type, date } = req.query;
+        
         const data = await Observe.findAll({
             include: [
                 {
@@ -120,7 +119,6 @@ const getAllObserves = async (req, res) => {
                 let latestRecord = null;
                 
                 // 初始化所有可能的 type 為 0
-                // 假設你的 type 範圍是 1-5，可以根據實際情況調整
                 const typeCount = {
                     1: 0,
                     2: 0,
@@ -137,7 +135,7 @@ const getAllObserves = async (req, res) => {
                         latestRecord = record;
                     }
                 });
-
+                
                 return {
                     id: item.id,
                     code: item.Stock.code,
@@ -149,12 +147,21 @@ const getAllObserves = async (req, res) => {
                     initPrice: item.initPrice,
                     createdAt: item.createdAt,
                     updatedAt: item.updatedAt,
-                    typeCount, // 添加 type 計數，包含所有可能的 type
+                    typeCount,
                 };
             })
             .filter((item) => {
-                if (!type) return true;
-                return item.latestRecord?.type === parseInt(type);
+                // 先過濾 type 條件
+                const typeCondition = !type || item.latestRecord?.type === parseInt(type);
+                
+                // 再過濾日期條件
+                if (!date || !item.latestRecord) return typeCondition;
+                
+                // 將 latestRecord.date 轉換為 YYYY-MM-DD 格式以便比較
+                const recordDate = new Date(item.latestRecord.date);
+                const recordDateStr = recordDate.toISOString().split('T')[0];
+                
+                return typeCondition && recordDateStr === date;
             });
 
         return res.status(200).json({ data: adjustedData, success: true });
