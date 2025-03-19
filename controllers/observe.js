@@ -46,7 +46,7 @@ const createObserveRecord = async (req, res) => {
 const getObserveById = async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         if (!id) {
             return res.status(400).json({ message: "Observe ID is required", success: false });
         }
@@ -66,7 +66,7 @@ const getObserveById = async (req, res) => {
         });
 
         if (!observe) {
-            return res.status(200).json({ message: "Observe record not found",data:{}, success: false });
+            return res.status(200).json({ message: "Observe record not found", data: {}, success: false });
         }
 
         let latestRecord = null;
@@ -81,13 +81,13 @@ const getObserveById = async (req, res) => {
             code: observe.Stock.code,
             name: observe.Stock.name,
             industry: observe.Stock.industry,
-            price: observe.Stock.price,
+            price: +observe.Stock.price,
             stockUpdatedAt: observe.Stock.updatedAt,
             latestRecord,
-            initPrice: observe.initPrice,
+            initPrice: +observe.initPrice,
             createdAt: observe.createdAt,
             updatedAt: observe.updatedAt,
-            records: observe.ObservesRecords, 
+            records: observe.ObservesRecords,
         };
 
         return res.status(200).json({ data: result, success: true });
@@ -95,10 +95,10 @@ const getObserveById = async (req, res) => {
         console.error("Error in getObserveById:", error);
         return res.status(500).json({ message: errorHandler(error), success: false });
     }
-};const getAllObserves = async (req, res) => {
+}; const getAllObserves = async (req, res) => {
     try {
         const { type, date } = req.query;
-        
+
         const data = await Observe.findAll({
             include: [
                 {
@@ -117,34 +117,40 @@ const getObserveById = async (req, res) => {
         const adjustedData = data
             .map((item) => {
                 let latestRecord = null;
-                
+
                 // 初始化所有可能的 type 為 0
                 const typeCount = {
                     1: 0,
                     2: 0,
                     3: 0,
                 };
-                
+
                 // 計算每種 type 的出現次數
                 item.ObservesRecords.forEach((record) => {
                     const recordType = record.type;
                     typeCount[recordType] = (typeCount[recordType] || 0) + 1;
-                    
+
                     // 找到最新的紀錄
                     if (!latestRecord || new Date(record.date) > new Date(latestRecord.date)) {
-                        latestRecord = record;
+
+                        latestRecord = {
+                            type: record?.type,
+                            price: +record?.price,
+                            date: record?.date,
+                            reason: record?.reason,
+                        };
                     }
                 });
-                
+
                 return {
                     id: item.id,
                     code: item.Stock.code,
                     name: item.Stock.name,
                     industry: item.Stock.industry,
-                    price: item.Stock.price,
+                    price: +item.Stock.price,
                     stockUpdatedAt: item.Stock.updatedAt,
                     latestRecord,
-                    initPrice: item.initPrice,
+                    initPrice: +item.initPrice,
                     createdAt: item.createdAt,
                     updatedAt: item.updatedAt,
                     typeCount,
@@ -153,14 +159,14 @@ const getObserveById = async (req, res) => {
             .filter((item) => {
                 // 先過濾 type 條件
                 const typeCondition = !type || item.latestRecord?.type === parseInt(type);
-                
+
                 // 再過濾日期條件
                 if (!date || !item.latestRecord) return typeCondition;
-                
+
                 // 將 latestRecord.date 轉換為 YYYY-MM-DD 格式以便比較
                 const recordDate = new Date(item.latestRecord.date);
                 const recordDateStr = recordDate.toISOString().split('T')[0];
-                
+
                 return typeCondition && recordDateStr === date;
             });
 

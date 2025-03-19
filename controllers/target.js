@@ -49,7 +49,7 @@ const getAllTargets = async (req, res) => {
                 code: item['Stock.code'],
                 name: item['Stock.name'],
                 industry: item['Stock.industry'],
-                price: item['Stock.price'],
+                price: +item['Stock.price'],
                 stockUpdatedAt: item['Stock.updatedAt'],
                 rate: item.rate,
                 initPrice: item.initPrice,
