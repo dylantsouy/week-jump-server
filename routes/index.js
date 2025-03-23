@@ -71,5 +71,6 @@ router.delete('/quotes/:id', [verifyToken], QuoteControllers.deleteQuote);
 
 router.get('/loans', [verifyToken], LoanControllers.getAllLoans);
 router.post('/loans', [verifyToken], LoanControllers.createLoanRankings);
+router.delete('/loans', [verifyToken], LoanControllers.deleteAllLoans);
 
 module.exports = router;

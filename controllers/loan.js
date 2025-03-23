@@ -40,7 +40,8 @@ async function fetchLoanRankingData(type) {
         let todayMonth = String(today.getMonth() + 1).padStart(2, '0');
         let todayDay = String(today.getDate()).padStart(2, '0');
         let todayFormatted = `${todayMonth}/${todayDay}`;
-
+        let todayYear = today.getFullYear();
+        let recordDate = `${todayYear}/${todayMonth}/${todayDay}`;
         if (date !== todayFormatted) {
             console.log('日期不匹配，停止執行。');
             return;
@@ -77,6 +78,7 @@ async function fetchLoanRankingData(type) {
                 initPrice,
                 previousBalance,
                 currentBalance,
+                recordDate,
                 change
             });
         });
@@ -107,7 +109,7 @@ async function fetchMarginRate(stockCode) {
         let changeText = targetText[1]
         let match = changeText.match(/\d+\.\d+/);
         let change = match ? match[0] : null;
-
+        
         marginRate = +number;
         marginRateChange = +change;
         if (!targetColumn) {
@@ -135,15 +137,10 @@ const createLoanRankings = async (req, res) => {
         }
 
         const formattedToday = today.toISOString().split('T')[0];
-        const startOfDay = new Date(formattedToday);
-        const endOfDay = new Date(formattedToday);
-        endOfDay.setHours(23, 59, 59, 999);
-        
+
         const existingRecords = await Loan.findOne({
             where: {
-                createdAt: {
-                    [Op.between]: [startOfDay, endOfDay]
-                }
+                recordDate: formattedToday
             }
         });
         if (existingRecords) {
@@ -179,6 +176,10 @@ const createLoanRankings = async (req, res) => {
         const filteredLoanData = loanData.filter(item => existingStockCodes.includes(item.stockCode));
         const enhancedLoanDataPromises = filteredLoanData.map(async (item) => {
             const { marginRate, marginRateChange } = await fetchMarginRate(item.stockCode);
+            if(item?.stockCode === '1304'){
+                console.log(marginRateChange);
+                
+            }
             return {
                 ...item,
                 marginRate,
@@ -197,20 +198,58 @@ const createLoanRankings = async (req, res) => {
         return res.status(500).json({ message: errorHandler(error), success: false });
     }
 };
-
 const getAllLoans = async (req, res) => {
     try {
-        const data = await Loan.findAll({
-            attributes: { exclude: ['password'] },
+        const { date } = req.query;
+        
+        let whereClause = {};
+        if (date) {
+            whereClause.recordDate = date; 
+        }
+        
+        const loans = await Loan.findAll({
+            where: whereClause,
+            order: [['stockCode', 'ASC']]
         });
-        return res.status(200).json({ data, success: true });
+        
+        const combinedLoans = {};
+        
+        loans.forEach(loan => {
+            const loanData = loan.get({ plain: true });
+            const { stockCode } = loanData;
+            
+            if (!combinedLoans[stockCode]) {
+                combinedLoans[stockCode] = {
+                    stockCode,
+                    records: [],
+                };
+            }
+            
+            combinedLoans[stockCode].records.push(loanData);
+        });
+        
+        const result = Object.values(combinedLoans);
+        
+        return res.status(200).json({ data: result, success: true });
     } catch (error) {
         return res.status(500).send({ message: errorHandler(error), success: false });
+    }
+};
+
+const deleteAllLoans = async (req, res) => {
+    try {
+        await Loan.destroy({
+            where: {},
+            truncate: true,
+        });
+        return res.status(200).json({ message: 'All Loans deleted successfully', success: true });
+    } catch (error) {
+        return res.status(500).json({ message: errorHandler(error), success: false });
     }
 };
 
 module.exports = {
     fetchLoanRankingData,
     createLoanRankings,
-    getAllLoans
+    getAllLoans, deleteAllLoans
 };
