@@ -2,6 +2,7 @@ const { Stock, Loan } = require('../models');
 const { errorHandler } = require('../helpers/responseHelper');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const { Op } = require('sequelize');
 
 const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
@@ -27,17 +28,17 @@ async function fetchLoanRankingData(type) {
 
         const loanData = [];
         let dateText = $('.t11').text();
-        let date = dateText.slice(5,10);
+        let date = dateText.slice(5, 10);
         let today = new Date();
-        let dayOfWeek = today.getDay(); 
+        let dayOfWeek = today.getDay();
 
         if (dayOfWeek === 6) {
-            today.setDate(today.getDate() - 1); 
+            today.setDate(today.getDate() - 1);
         } else if (dayOfWeek === 0) {
-            today.setDate(today.getDate() - 2); 
+            today.setDate(today.getDate() - 2);
         }
-        let todayMonth = String(today.getMonth() + 1).padStart(2, '0'); 
-        let todayDay = String(today.getDate()).padStart(2, '0'); 
+        let todayMonth = String(today.getMonth() + 1).padStart(2, '0');
+        let todayDay = String(today.getDate()).padStart(2, '0');
         let todayFormatted = `${todayMonth}/${todayDay}`;
 
         if (date !== todayFormatted) {
@@ -125,25 +126,29 @@ async function fetchMarginRate(stockCode) {
 const createLoanRankings = async (req, res) => {
     try {
         let today = new Date();
-        let dayOfWeek = today.getDay(); 
+        let dayOfWeek = today.getDay();
 
         if (dayOfWeek === 6) {
-            today.setDate(today.getDate() - 1); 
+            today.setDate(today.getDate() - 1);
         } else if (dayOfWeek === 0) {
-            today.setDate(today.getDate() - 2); 
+            today.setDate(today.getDate() - 2);
         }
 
         const formattedToday = today.toISOString().split('T')[0];
+        const startOfDay = new Date(formattedToday);
+        const endOfDay = new Date(formattedToday);
+        endOfDay.setHours(23, 59, 59, 999);
         
         const existingRecords = await Loan.findOne({
             where: {
-                createdAt: formattedToday
+                createdAt: {
+                    [Op.between]: [startOfDay, endOfDay]
+                }
             }
         });
-        
         if (existingRecords) {
-            return res.status(200).json({ 
-                message: `Data for ${formattedToday} already exists`, 
+            return res.status(200).json({
+                message: `Data for ${formattedToday} already exists`,
                 success: true,
                 isExisting: true
             });
