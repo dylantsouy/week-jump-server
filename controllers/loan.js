@@ -3,6 +3,7 @@ const { errorHandler } = require('../helpers/responseHelper');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { Op } = require('sequelize');
+const moment = require('moment');
 
 const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
@@ -109,7 +110,7 @@ async function fetchMarginRate(stockCode) {
         let changeText = targetText[1]
         let match = changeText.match(/\d+\.\d+/);
         let change = match ? match[0] : null;
-        
+
         marginRate = +number;
         marginRateChange = +change;
         if (!targetColumn) {
@@ -176,9 +177,9 @@ const createLoanRankings = async (req, res) => {
         const filteredLoanData = loanData.filter(item => existingStockCodes.includes(item.stockCode));
         const enhancedLoanDataPromises = filteredLoanData.map(async (item) => {
             const { marginRate, marginRateChange } = await fetchMarginRate(item.stockCode);
-            if(item?.stockCode === '1304'){
+            if (item?.stockCode === '1304') {
                 console.log(marginRateChange);
-                
+
             }
             return {
                 ...item,
@@ -198,38 +199,111 @@ const createLoanRankings = async (req, res) => {
         return res.status(500).json({ message: errorHandler(error), success: false });
     }
 };
+
+const getLoanRecords = async (req, res) => {
+    try {
+        const { code } = req.params;
+        if (!code) {
+            return res.status(400).json({ message: 'please fill required field', success: false });
+        }
+        const stockCode = String(code);
+
+        const data = await Loan.findAll({
+            where: { stockCode: stockCode },
+            include: [{
+                model: Stock,
+                attributes: ['code', 'name', 'industry', 'price', 'updatedAt'],
+                required: true
+            }],
+            order: [['stockCode', 'ASC'], ['recordDate', 'DESC']]
+        });
+
+        if (data.length === 0) {
+            return res.status(200).json({ message: 'No loan records found for this stock code', success: true });
+        }
+
+        const loanMap = new Map();
+        let result = {};
+
+        for (const loan of data) {
+            const loanData = loan.get({ plain: true });
+            const { stockCode, Stock, ...recordData } = loanData;
+
+            if (!loanMap.has(stockCode)) {
+                const stockEntry = {
+                    stockCode,
+                    stockName: Stock.name,
+                    industry: Stock.industry,
+                    price: Stock.price,
+                    updatedAt: Stock.updatedAt,
+                    latestRecordDate: loanData.recordDate,
+                    latestRecord: recordData,
+                    records: [recordData]  // 首次資料為唯一記錄
+                };
+
+                loanMap.set(stockCode, stockEntry);
+                result = stockEntry;
+            } else {
+                loanMap.get(stockCode).records.push(recordData);
+            }
+        }
+
+        return res.status(200).json({ data: result, success: true });
+    } catch (error) {
+        return res.status(500).send({ message: errorHandler(error), success: false });
+    }
+};
+
+
 const getAllLoans = async (req, res) => {
     try {
         const { date } = req.query;
-        
+
         let whereClause = {};
         if (date) {
-            whereClause.recordDate = date; 
+            const momentDate = moment(date, 'YYYY/MM/DD');
+            whereClause.recordDate = momentDate;
         }
-        
+
         const loans = await Loan.findAll({
             where: whereClause,
-            order: [['stockCode', 'ASC']]
+            include: [{
+                model: Stock,
+                attributes: ['code', 'name', 'industry', 'price', 'updatedAt'],
+                required: false
+            }],
+            order: [['stockCode', 'ASC'], ['recordDate', 'DESC']]
         });
-        
-        const combinedLoans = {};
-        
-        loans.forEach(loan => {
+
+        const stockMap = new Map();
+        const result = [];
+
+        for (const loan of loans) {
             const loanData = loan.get({ plain: true });
-            const { stockCode } = loanData;
-            
-            if (!combinedLoans[stockCode]) {
-                combinedLoans[stockCode] = {
+            const { stockCode, Stock } = loanData;
+
+            if (!stockMap.has(stockCode)) {
+                const { Stock, ...latestRecord } = loanData;
+
+                const stockEntry = {
                     stockCode,
-                    records: [],
+                    stockName: Stock?.name || '',
+                    industry: Stock?.industry || '',
+                    price: Stock?.price || '',
+                    updatedAt: Stock?.updatedAt || '',
+                    latestRecordDate: loanData.recordDate,
+                    latestRecord,
+                    records: [latestRecord]
                 };
+
+                result.push(stockEntry);
+                stockMap.set(stockCode, stockEntry);
+            } else {
+                const { Stock, ...recordWithoutStock } = loanData;
+                stockMap.get(stockCode).records.push(recordWithoutStock);
             }
-            
-            combinedLoans[stockCode].records.push(loanData);
-        });
-        
-        const result = Object.values(combinedLoans);
-        
+        }
+
         return res.status(200).json({ data: result, success: true });
     } catch (error) {
         return res.status(500).send({ message: errorHandler(error), success: false });
@@ -251,5 +325,7 @@ const deleteAllLoans = async (req, res) => {
 module.exports = {
     fetchLoanRankingData,
     createLoanRankings,
-    getAllLoans, deleteAllLoans
+    getAllLoans,
+    deleteAllLoans,
+    getLoanRecords
 };
