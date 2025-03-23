@@ -46,6 +46,10 @@ module.exports = (sequelize, DataTypes) => {
                 defaultValue: 0,
                 allowNull: false,
             },
+            marginRateChange: {
+                type: DataTypes.INTEGER,
+                allowNull: false,
+            },
             recordDate: {
                 type: DataTypes.DATE,
                 allowNull: false,
