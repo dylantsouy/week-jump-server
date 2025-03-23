@@ -8,6 +8,7 @@ const ContractControllers = require('../controllers/contract');
 const NewsControllers = require('../controllers/news');
 const ObserveControllers = require('../controllers/observe');
 const QuoteControllers = require('../controllers/quote');
+const LoanControllers = require('../controllers/loan');
 const verifyToken = require('../middlewares/authJwt');
 
 router.get('/ping', (req, res) => {
@@ -67,5 +68,8 @@ router.get('/quotes', [verifyToken], QuoteControllers.getAllQuotes);
 router.post('/quotes', [verifyToken], QuoteControllers.createQuote);
 router.put('/quotes/:id', [verifyToken], QuoteControllers.updateQuote);
 router.delete('/quotes/:id', [verifyToken], QuoteControllers.deleteQuote);
+
+router.get('/loans', [verifyToken], LoanControllers.getAllLoans);
+router.post('/loans', [verifyToken], LoanControllers.createLoanRankings);
 
 module.exports = router;

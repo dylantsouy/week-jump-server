@@ -14,17 +14,15 @@ module.exports = (sequelize, DataTypes) => {
     Loan.init(
         {
             id: {
-                type: DataTypes.INTEGER,
+                type: DataTypes.UUID,
+                defaultValue: DataTypes.UUIDV4,
+                allowNull: false,
                 primaryKey: true,
-                autoIncrement: true,
+                unique: true,
             },
             stockCode: {
                 type: DataTypes.STRING,
                 allowNull: false,
-                references: {
-                    model: 'Stocks',
-                    key: 'code'
-                }
             },
             previousBalance: {
                 type: DataTypes.BIGINT,
@@ -36,6 +34,16 @@ module.exports = (sequelize, DataTypes) => {
             },
             change: {
                 type: DataTypes.INTEGER,
+                allowNull: false,
+            },
+            initPrice: {
+                type: DataTypes.FLOAT,
+                defaultValue: 0,
+                allowNull: false,
+            },
+            marginRate: {
+                type: DataTypes.FLOAT,
+                defaultValue: 0,
                 allowNull: false,
             },
             recordDate: {

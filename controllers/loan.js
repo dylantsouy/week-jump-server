@@ -2,7 +2,7 @@ const { Stock, Loan } = require('../models');
 const { errorHandler } = require('../helpers/responseHelper');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const dayjs = require('dayjs');
+const moment = require('moment');
 
 const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
@@ -11,15 +11,16 @@ const headers = {
     'Referer': 'https://fubon-ebrokerdj.fbs.com.tw'
 };
 
-async function fetchLoanRankingData() {
+async function fetchLoanRankingData(type) {
     try {
-        const response = await axios.get('https://fubon-ebrokerdj.fbs.com.tw/Z/ZG/ZG_E.djhtm', {
+        let url = type === 'TWSE' ? 'https://fubon-ebrokerdj.fbs.com.tw/Z/ZG/ZG_E.djhtm':'https://fubon-ebrokerdj.fbs.com.tw/z/zg/zg_E_1_1.djhtm'
+        const response = await axios.get(url, {
             headers: headers
         });
 
         const $ = cheerio.load(response.data);
         
-        const recordDate = dayjs().format('YYYY-MM-DD');
+        const recordDate = moment().format('YYYY-MM-DD');
         
         const loanData = [];
 
@@ -35,14 +36,16 @@ async function fetchLoanRankingData() {
             }
 
             const stockText = $(tds[1]).text().trim();
-            const codeMatch = stockText.match(/\((\d+)\)/);
+            const codeMatch = stockText.split(' ');
             
             if (!codeMatch) {
                 return;
             }
             
-            const stockCode = codeMatch[1];
-            
+            const stockCode = codeMatch[0];
+            if(stockCode.length > 4) {
+                return;
+            }
             const previousBalance = parseInt($(tds[2]).text().trim().replace(/,/g, ''), 10) || 0;
             const currentBalance = parseInt($(tds[3]).text().trim().replace(/,/g, ''), 10) || 0;
             const change = parseInt($(tds[4]).text().trim().replace(/,/g, ''), 10) || 0;
@@ -55,19 +58,64 @@ async function fetchLoanRankingData() {
                 recordDate
             });
         });
-
+        
         return loanData;
     } catch (error) {
-        return res.status(500).json({ message: errorHandler(error), success: false });
+        console.error('Error fetching data:', error);
+        return null;
+    }
+}
+
+async function fetchMarginRate(stockCode) {
+    try {
+        const url = `https://www.istock.tw/stock/${stockCode}/margin-rate`;
+        const response = await axios.get(url, {
+            headers: istockHeaders,
+            timeout: 10000 
+        });
+
+        const $ = cheerio.load(response.data);
+        
+        let marginRate = null;
+        
+        $('.table-container table tr').each((index, element) => {
+            const firstColumn = $(element).find('td:first-child').text().trim();
+            if (firstColumn.includes('融資使用率')) {
+                const rateText = $(element).find('td:last-child').text().trim();
+                const rateMatch = rateText.match(/(\d+\.\d+|\d+)/);
+                if (rateMatch) {
+                    marginRate = parseFloat(rateMatch[0]);
+                }
+                return false;
+            }
+        });
+
+        if (marginRate === null) {
+            $('.margin-rate-value, .margin-usage-rate, .financing-usage-rate').each((index, element) => {
+                const text = $(element).text().trim();
+                const rateMatch = text.match(/(\d+\.\d+|\d+)/);
+                if (rateMatch) {
+                    marginRate = parseFloat(rateMatch[0]);
+                    return false;
+                }
+            });
+        }
+
+        return marginRate;
+    } catch (error) {
+        console.error(`獲取 ${stockCode} 融資使用率失敗:`, error.message);
+        return null;
     }
 }
 
 const createLoanRankings = async (req, res) => {
     try {
-        const loanData = await fetchLoanRankingData();
-        
+        const loanDataTWSE = await fetchLoanRankingData('TWSE');
+        const loanDataOTC = await fetchLoanRankingData('OTC');
+        let loanData = [...loanDataTWSE,...loanDataOTC];
+
         if (!loanData.length) {
-            return res.status(400).json({ message: 'error', success: false });
+            return res.status(400).json({ message: 'No data fetch', success: false });
         }
 
         const stockCodes = loanData.map(item => item.stockCode);
@@ -82,24 +130,44 @@ const createLoanRankings = async (req, res) => {
         const nonExistingStockCodes = stockCodes.filter(code => !existingStockCodes.includes(code));
 
         if (nonExistingStockCodes.length > 0) {
-            console.log(`error: ${nonExistingStockCodes.join(', ')}`);
+            console.log(`Error Stock codes: ${nonExistingStockCodes.join(', ')}`);
         }
 
         const filteredLoanData = loanData.filter(item => existingStockCodes.includes(item.stockCode));
         
-        await Loan.bulkCreate(filteredLoanData);
+        const enhancedLoanDataPromises = filteredLoanData.map(async (item) => {
+            const marginRate = await fetchMarginRate(item.stockCode);
+            return {
+                ...item,
+                marginRate
+            };
+        });
+        const enhancedLoanData = await Promise.all(enhancedLoanDataPromises);
+        await Loan.bulkCreate(enhancedLoanData);
 
         return res.status(200).json({ 
             message: 'Successful Created', 
             success: true,
-            count: filteredLoanData.length
+            count: enhancedLoanData.length,
         });
     } catch (error) {
         return res.status(500).json({ message: errorHandler(error), success: false });
     }
 };
 
+const getAllLoans = async (req, res) => {
+    try {
+        const data = await Loan.findAll({
+            attributes: { exclude: ['password'] },
+        });
+        return res.status(200).json({ data, success: true });
+    } catch (error) {
+        return res.status(500).send({ message: errorHandler(error), success: false });
+    }
+};
+
 module.exports = {
     fetchLoanRankingData,
-    createLoanRankings
+    createLoanRankings,
+    getAllLoans
 };
