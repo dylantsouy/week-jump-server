@@ -57,6 +57,7 @@ router.get('/observes/:id', [verifyToken], ObserveControllers.getObserveById);
 router.get('/observes', [verifyToken], ObserveControllers.getAllObserves);
 router.get('/observesRecords/:observeId', [verifyToken], ObserveControllers.getObservesRecords);
 router.put('/observes/:id', [verifyToken], ObserveControllers.updateObserve);
+router.put('/observes', [verifyToken], ObserveControllers.updateObserveRecordReason);
 router.put('/observesRecords/:id', [verifyToken], ObserveControllers.updateObservesRecord);
 router.delete('/observes/:id', [verifyToken], ObserveControllers.deleteObserve);
 router.delete('/observesRecords/:id', [verifyToken], ObserveControllers.deleteObservesRecord);

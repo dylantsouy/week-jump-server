@@ -18,6 +18,16 @@ module.exports = (sequelize, DataTypes) => {
                 onUpdate: "NO ACTION",
                 onDelete: 'NO ACTION',
             });
+            Stock.hasMany(models.Loan, {
+                foreignKey: 'stockCode',
+                onUpdate: "NO ACTION",
+                onDelete: 'NO ACTION',
+            });
+            Stock.hasMany(models.Observe, {
+                foreignKey: 'stockCode',
+                onUpdate: "NO ACTION",
+                onDelete: 'NO ACTION',
+            });
         }
     }
     Stock.init(

@@ -43,6 +43,41 @@ const createObserveRecord = async (req, res) => {
         return res.status(500).json({ message: errorHandler(error), success: false });
     }
 };
+
+const updateObserveRecordReason = async (req, res) => {
+    try {
+        const { original, changeTo } = req.body;
+
+        // 檢查請求參數
+        if (!original || !changeTo) {
+            return res.status(400).json({ message: 'Missing required fields', success: false });
+        }
+
+        // 查找符合 original 的記錄
+        const matchingRecords = await ObservesRecord.findAll({
+            where: { reason: original },
+        });
+
+        if (matchingRecords.length === 0) {
+            return res.status(404).json({ message: 'No matching records found', success: false });
+        }
+
+        // 更新 reason 欄位
+        const [updatedCount] = await ObservesRecord.update(
+            { reason: changeTo },
+            { where: { reason: original } }
+        );
+
+        return res.status(200).json({
+            message: 'Records updated successfully',
+            updatedCount,
+            success: true,
+        });
+    } catch (error) {
+        return res.status(500).json({ message: errorHandler(error), success: false });
+    }
+};
+
 const getObserveById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -322,5 +357,5 @@ module.exports = {
     getObservesRecords,
     updateObservesRecord,
     deleteObservesRecord,
-    getObserveById
+    getObserveById,updateObserveRecordReason
 };
