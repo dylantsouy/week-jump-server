@@ -2,7 +2,6 @@ const { Stock, Loan } = require('../models');
 const { errorHandler } = require('../helpers/responseHelper');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const moment = require('moment');
 
 const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
@@ -26,10 +25,25 @@ async function fetchLoanRankingData(type) {
 
         const $ = cheerio.load(response.data);
 
-        const recordDate = moment().format('YYYY-MM-DD');
-
         const loanData = [];
+        let dateText = $('.t11').text();
+        let date = dateText.slice(5,10);
+        let today = new Date();
+        let dayOfWeek = today.getDay(); 
 
+        if (dayOfWeek === 6) {
+            today.setDate(today.getDate() - 1); 
+        } else if (dayOfWeek === 0) {
+            today.setDate(today.getDate() - 2); 
+        }
+        let todayMonth = String(today.getMonth() + 1).padStart(2, '0'); 
+        let todayDay = String(today.getDate()).padStart(2, '0'); 
+        let todayFormatted = `${todayMonth}/${todayDay}`;
+
+        if (date !== todayFormatted) {
+            console.log('日期不匹配，停止執行。');
+            return;
+        }
         $('table.t01 tr').each((index, element) => {
             if (index === 0 || $(element).find('td').length === 0) {
                 return;
@@ -62,8 +76,7 @@ async function fetchLoanRankingData(type) {
                 initPrice,
                 previousBalance,
                 currentBalance,
-                change,
-                recordDate
+                change
             });
         });
 
@@ -85,34 +98,24 @@ async function fetchMarginRate(stockCode) {
         const $ = cheerio.load(response.data);
 
         let marginRate = null;
+        let marginRateChange = null;
+        const firstRow = $('.table-responsive table tr:nth-child(1)');
+        const targetColumn = firstRow.find('td:nth-child(9)').text().trim();
+        let targetText = targetColumn.split(' ');
+        let number = targetText[0]
+        let changeText = targetText[1]
+        let match = changeText.match(/\d+\.\d+/);
+        let change = match ? match[0] : null;
 
-        $('.table-responsive table tr').each((index, element) => {
-
-            const targetColumn = $(element).find('td:nth(9)').text().trim();
-            let targetText =targetColumn.split(' ');
-            let number = targetText[0]
-            let change = targetText[1]
-            console.log(stockCode,number,change);
-            return
-            
-            if (rateMatch) {
-                marginRate = parseFloat(rateMatch[0]);
-            }
-            return false;
-        });
-
-        if (marginRate === null) {
-            $('.margin-rate-value, .margin-usage-rate, .financing-usage-rate').each((index, element) => {
-                const text = $(element).text().trim();
-                const rateMatch = text.match(/(\d+\.\d+|\d+)/);
-                if (rateMatch) {
-                    marginRate = parseFloat(rateMatch[0]);
-                    return false;
-                }
-            });
+        marginRate = +number;
+        marginRateChange = +change;
+        if (!targetColumn) {
+            console.log(`${stockCode} 未找到融資使用率數據`);
+            return null;
         }
 
-        return marginRate;
+
+        return { marginRate, marginRateChange };
     } catch (error) {
         console.error(`獲取 ${stockCode} 融資使用率失敗:`, error.message);
         return null;
@@ -121,6 +124,30 @@ async function fetchMarginRate(stockCode) {
 
 const createLoanRankings = async (req, res) => {
     try {
+        let today = new Date();
+        let dayOfWeek = today.getDay(); 
+
+        if (dayOfWeek === 6) {
+            today.setDate(today.getDate() - 1); 
+        } else if (dayOfWeek === 0) {
+            today.setDate(today.getDate() - 2); 
+        }
+
+        const formattedToday = today.toISOString().split('T')[0];
+        
+        const existingRecords = await Loan.findOne({
+            where: {
+                createdAt: formattedToday
+            }
+        });
+        
+        if (existingRecords) {
+            return res.status(200).json({ 
+                message: `Data for ${formattedToday} already exists`, 
+                success: true,
+                isExisting: true
+            });
+        }
         const loanDataTWSE = await fetchLoanRankingData('TWSE');
         const loanDataOTC = await fetchLoanRankingData('OTC');
         let loanData = [...loanDataTWSE, ...loanDataOTC];
@@ -146,10 +173,11 @@ const createLoanRankings = async (req, res) => {
 
         const filteredLoanData = loanData.filter(item => existingStockCodes.includes(item.stockCode));
         const enhancedLoanDataPromises = filteredLoanData.map(async (item) => {
-            const marginRate = await fetchMarginRate(item.stockCode);
+            const { marginRate, marginRateChange } = await fetchMarginRate(item.stockCode);
             return {
                 ...item,
-                marginRate
+                marginRate,
+                marginRateChange
             };
         });
         const enhancedLoanData = await Promise.all(enhancedLoanDataPromises);
