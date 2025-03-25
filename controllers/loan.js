@@ -18,7 +18,7 @@ const istockHeaders = {
     'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
     'Referer': 'https://www.istock.tw'
 };
-async function fetchLoanRankingData(type) {
+async function fetchLoanRankingData(type, date) {
     try {
         let url = type === 'TWSE' ? 'https://fubon-ebrokerdj.fbs.com.tw/Z/ZG/ZG_E.djhtm' : 'https://fubon-ebrokerdj.fbs.com.tw/z/zg/zg_E_1_1.djhtm'
         const response = await axios.get(url, {
@@ -29,8 +29,8 @@ async function fetchLoanRankingData(type) {
 
         const loanData = [];
         let dateText = $('.t11').text();
-        let date = dateText.slice(5, 10);
-        let today = new Date();
+        let pageDate = dateText.slice(5, 10);
+        let today = new Date(date);
         let dayOfWeek = today.getDay();
 
         if (dayOfWeek === 6) {
@@ -43,7 +43,7 @@ async function fetchLoanRankingData(type) {
         let todayFormatted = `${todayMonth}/${todayDay}`;
         let todayYear = today.getFullYear();
         let recordDate = `${todayYear}/${todayMonth}/${todayDay}`;
-        if (date !== todayFormatted) {
+        if (pageDate !== todayFormatted) {
             console.log('日期不匹配，停止執行。');
             return;
         }
@@ -128,7 +128,9 @@ async function fetchMarginRate(stockCode) {
 
 const createLoanRankings = async (req, res) => {
     try {
-        let today = new Date();
+        let { date } = req.body;
+        let today = new Date(date);
+
         let dayOfWeek = today.getDay();
 
         if (dayOfWeek === 6) {
@@ -136,23 +138,22 @@ const createLoanRankings = async (req, res) => {
         } else if (dayOfWeek === 0) {
             today.setDate(today.getDate() - 2);
         }
-
-        const formattedToday = today.toISOString().split('T')[0];
+        const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
         const existingRecords = await Loan.findOne({
             where: {
-                recordDate: formattedToday
+                recordDate: localToday
             }
         });
         if (existingRecords) {
             return res.status(200).json({
-                message: `Data for ${formattedToday} already exists`,
+                message: `Data for ${localToday} already exists`,
                 success: true,
                 isExisting: true
             });
         }
-        const loanDataTWSE = await fetchLoanRankingData('TWSE');
-        const loanDataOTC = await fetchLoanRankingData('OTC');
+        const loanDataTWSE = await fetchLoanRankingData('TWSE', localToday);
+        const loanDataOTC = await fetchLoanRankingData('OTC', localToday);
         let loanData = [...loanDataTWSE, ...loanDataOTC];
 
         if (!loanData.length) {
@@ -177,12 +178,9 @@ const createLoanRankings = async (req, res) => {
         const filteredLoanData = loanData.filter(item => existingStockCodes.includes(item.stockCode));
         const enhancedLoanDataPromises = filteredLoanData.map(async (item) => {
             const { marginRate, marginRateChange } = await fetchMarginRate(item.stockCode);
-            if (item?.stockCode === '1304') {
-                console.log(marginRateChange);
-
-            }
             return {
                 ...item,
+                recordDate: localToday,
                 marginRate,
                 marginRateChange
             };
@@ -261,8 +259,9 @@ const getAllLoans = async (req, res) => {
 
         let whereClause = {};
         if (date) {
-            const momentDate = moment(date, 'YYYY/MM/DD');
-            whereClause.recordDate = momentDate;
+            const inputDate = new Date(date);
+            const localDate = new Date(inputDate.getFullYear(), inputDate.getMonth(), inputDate.getDate());
+            whereClause.recordDate = localDate;
         }
 
         const loans = await Loan.findAll({
@@ -310,15 +309,38 @@ const getAllLoans = async (req, res) => {
     }
 };
 
-const deleteAllLoans = async (req, res) => {
+const bulkDeleteLoan = async (req, res) => {
     try {
-        await Loan.destroy({
-            where: {},
-            truncate: true,
+        const { ids } = req.body;
+
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).send({
+                message: 'IDs format error',
+                success: false
+            });
+        }
+
+        const deletedCount = await Loan.destroy({
+            where: { id: ids }
         });
-        return res.status(200).json({ message: 'All Loans deleted successfully', success: true });
+
+        if (deletedCount > 0) {
+            return res.status(200).send({
+                message: `Successful deleted`,
+                success: true,
+                deletedCount
+            });
+        } else {
+            return res.status(400).send({
+                message: 'ID does not exists',
+                success: false
+            });
+        }
     } catch (error) {
-        return res.status(500).json({ message: errorHandler(error), success: false });
+        return res.status(500).send({
+            message: errorHandler(error),
+            success: false
+        });
     }
 };
 
@@ -326,6 +348,6 @@ module.exports = {
     fetchLoanRankingData,
     createLoanRankings,
     getAllLoans,
-    deleteAllLoans,
+    bulkDeleteLoan,
     getLoanRecords
 };

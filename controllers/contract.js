@@ -36,11 +36,11 @@ async function fetchData(target, quarter) {
             for (let i = 0; i < rs2.length; i++) {
                 const row = rs2.eq(i);
                 const td = row.find('td');
-                
+
                 if (td.length >= 4) {
                     let date = td.eq(0).text();
                     let cleaned_date = date.replace(/\s?\(\d+\)/, '').trim();
-                    
+
                     // If this row has the quarter we're looking for
                     if (cleaned_date === quarter) {
                         let contractValue = td.eq(1).text() || '0';
@@ -48,7 +48,7 @@ async function fetchData(target, quarter) {
                         let yoy = td.eq(3).text() || '0';
                         let stg = rs.eq(0).text();
                         let index = stg.indexOf(':');
-                        
+
                         if (index !== -1) {
                             let percentage = stg.substring(index + 2, stg.length - 1);
                             let success = {
@@ -143,38 +143,39 @@ const getContract = async (req, res) => {
 
 const bulkDeleteContract = async (req, res) => {
     try {
-      const { ids } = req.body; 
-      
-      if (!Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).send({
-          message: 'IDs format error',
-          success: false
+        const { ids } = req.body;
+
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).send({
+                message: 'IDs format error',
+                success: false
+            });
+        }
+
+        const deletedCount = await ContractsRecord.destroy({
+            where: { id: ids }
         });
-      }
-      
-      const deletedCount = await ContractsRecord.destroy({
-        where: { id: ids } 
-      });
-      
-      if (deletedCount > 0) {
-        return res.status(200).send({
-          message: `Successful deleted`,
-          success: true,
-          deletedCount
-        });
-      } else {
-        return res.status(400).send({
-          message: 'ID does not exists',
-          success: false
-        });
-      }
+
+        if (deletedCount > 0) {
+            return res.status(200).send({
+                message: `Successful deleted`,
+                success: true,
+                deletedCount
+            });
+        } else {
+            return res.status(400).send({
+                message: 'ID does not exists',
+                success: false
+            });
+        }
     } catch (error) {
-      return res.status(500).send({
-        message: errorHandler(error),
-        success: false
-      });
+        return res.status(500).send({
+            message: errorHandler(error),
+            success: false
+        });
     }
-  };
+};
+
 const getAllContracts = async (req, res) => {
     try {
         let { quarter, rank, range } = req.query;
@@ -212,12 +213,12 @@ const getAllContracts = async (req, res) => {
                     where:
                         rank && range
                             ? {
-                                  [rank]: {
-                                      [Op.gt]: rangeValue,
-                                  },
-                              }
+                                [rank]: {
+                                    [Op.gt]: rangeValue,
+                                },
+                            }
                             : {},
-                    attributes: ['quarter', 'yoy', 'qoq', 'percentage', 'contractValue','id'],
+                    attributes: ['quarter', 'yoy', 'qoq', 'percentage', 'contractValue', 'id'],
                 },
             ],
         });
