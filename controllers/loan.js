@@ -43,6 +43,7 @@ async function fetchLoanRankingData(type, date) {
         let todayFormatted = `${todayMonth}/${todayDay}`;
         let todayYear = today.getFullYear();
         let recordDate = `${todayYear}/${todayMonth}/${todayDay}`;
+
         if (pageDate !== todayFormatted) {
             console.log('日期不匹配，停止執行。');
             return;
@@ -129,7 +130,10 @@ async function fetchMarginRate(stockCode) {
 const createLoanRankings = async (req, res) => {
     try {
         let { date } = req.body;
-        let today = new Date(date);
+        let today = new Date();
+        if (date) {
+            today = new Date(date);
+        }
 
         let dayOfWeek = today.getDay();
 
