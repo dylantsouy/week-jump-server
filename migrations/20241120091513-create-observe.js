@@ -10,7 +10,7 @@ module.exports = {
                 type: Sequelize.UUID,
             },
             initPrice: {
-                type: Sequelize.STRING,
+                type: Sequelize.FLOAT,
                 allowNull: false,
             },
             stockCode: {

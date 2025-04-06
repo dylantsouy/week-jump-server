@@ -1,6 +1,7 @@
 'use strict';
 
-require('dotenv').config();
+import dotenv from 'dotenv';
+dotenv.config();
 const fs = require('fs');
 const path = require('path');
 const Sequelize = require('sequelize');

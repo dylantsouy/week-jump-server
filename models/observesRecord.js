@@ -35,7 +35,7 @@ module.exports = (sequelize, DataTypes) => {
             },
             price: {
                 allowNull: false,
-                type: DataTypes.STRING,
+                type: DataTypes.FLOAT,
             },
             reason: {
                 type: DataTypes.STRING,

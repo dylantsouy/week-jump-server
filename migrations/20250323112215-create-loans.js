@@ -21,6 +21,14 @@ module.exports = {
                 type: Sequelize.INTEGER,
                 allowNull: false,
             },
+            marginRateChange: {
+                type: Sequelize.FLOAT,
+                allowNull: false,
+            },
+            initPrice: {
+                type: Sequelize.FLOAT,
+                allowNull: false,
+            },
             recordDate: {
                 type: Sequelize.DATE,
                 allowNull: false,
