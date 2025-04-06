@@ -6,6 +6,7 @@ module.exports = {
         await queryInterface.createTable('Stocks', {
             code: {
                 allowNull: false,
+                primaryKey: true,
                 type: Sequelize.STRING,
                 unique: true,
             },
