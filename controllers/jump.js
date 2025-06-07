@@ -19,113 +19,154 @@ const header = {
     'user-agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
 };
-
 async function fetchData(target, perd, date) {
-    const yahooStockUrl = `https://tw.quote.finance.yahoo.net/quote/q?type=ta&perd=${perd}&mkt=10&sym=${target.code}&v=1&callback=test123`;
+    // Validate perd parameter
+    if (!['w', 'm'].includes(perd)) {
+        console.error(`Invalid perd value for ${target.code}.${target.Market}: ${perd}`);
+        return null;
+    }
+
+    // Map perd to valid interval
+    const interval = perd === 'w' ? '1wk' : '1mo';
+    const yahooStockUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${target.code}.${target.Market}?metrics=history&interval=${interval}&range=1mo`;
+
     try {
         const response = await axios.get(yahooStockUrl, { headers: header });
         const data = response.data;
-        const jsonData = JSON.parse(data.substring(data.indexOf('(') + 1, data.lastIndexOf(')')));
-        const tickData = jsonData.ta;
-        
-        if (tickData.length > 2) {
-            let dateIndex = -1;
-            const targetDateNum = parseInt(date);
-            
-            // 對 tickData 按日期排序（假設已按日期排好）
-            const availableDates = tickData.map(item => parseInt(item.t)).sort((a, b) => a - b);
-            
-            // 記錄每個可用日期在原始 tickData 中的索引
-            const dateToIndexMap = {};
-            tickData.forEach((item, index) => {
-                dateToIndexMap[parseInt(item.t)] = index;
+
+        // Check for API errors
+        if (!data.chart || data.chart.error || !data.chart.result || !data.chart.result[0]) {
+            console.error(`API error for ${target.code}.${target.Market}:`, data.chart?.error || 'No result');
+            return null;
+        }
+
+        const result = data.chart.result[0];
+        const timestamps = result.timestamp;
+        const quoteData = result.indicators?.quote?.[0];
+
+        // Validate timestamps and quoteData
+        if (!Array.isArray(timestamps) || !quoteData || !Array.isArray(quoteData.open)) {
+            console.error(`Missing or invalid data for ${target.code}.${target.Market}:`, {
+                hasTimestamps: !!timestamps,
+                hasQuoteData: !!quoteData,
+                hasOpen: !!quoteData?.open,
             });
-            
-            
-            // 週線和月線使用統一的查找方法，但有不同的日期處理邏輯
-            if (perd === 'w') {
-                // 計算可能的日期範圍：從每個交易日+3天，看是否與目標日期匹配
-                for (const availableDate of availableDates) {
-                    const adjDate = moment(availableDate.toString(), 'YYYYMMDD').add(3, 'days').format('YYYYMMDD');
-                    
-                    // 檢查調整後的日期是否符合目標日期
-                    if (adjDate === date) {
-                        dateIndex = dateToIndexMap[availableDate];
-                        break;
-                    }
+            return null;
+        }
+
+        // Ensure data lengths match
+        if (timestamps.length !== quoteData.open.length) {
+            console.error(
+                `Data length mismatch for ${target.code}.${target.Market}: timestamps=${timestamps.length}, open=${quoteData.open.length}`
+            );
+            return null;
+        }
+
+        // Construct tickData
+        const tickData = timestamps.map((timestamp, index) => ({
+            t: moment.unix(timestamp).format('YYYYMMDD'),
+            o: quoteData.open[index],
+            h: quoteData.high[index],
+            l: quoteData.low[index],
+            c: quoteData.close[index],
+            v: quoteData.volume[index],
+        }));
+
+        if (tickData.length < 2) {
+            console.warn(`Insufficient data points for ${target.code}.${target.Market}: length=${tickData.length}`);
+            return null;
+        }
+
+        let dateIndex = -1;
+        const targetDateNum = parseInt(date);
+
+        // Sort and map available dates
+        const availableDates = tickData.map((item) => parseInt(item.t)).sort((a, b) => a - b);
+        const dateToIndexMap = {};
+        tickData.forEach((item, index) => {
+            dateToIndexMap[parseInt(item.t)] = index;
+        });
+
+        // Date lookup logic
+        if (perd === 'w') {
+            for (const availableDate of availableDates) {
+                const adjDate = moment(availableDate.toString(), 'YYYYMMDD').add(3, 'days').format('YYYYMMDD');
+                if (adjDate === date) {
+                    dateIndex = dateToIndexMap[availableDate];
+                    break;
                 }
-                
-                // 如果沒有找到精確匹配，查找最接近的日期
-                if (dateIndex === -1) {
-                    // 將目標日期減去3天，尋找最接近的交易日
-                    const targetMinusThree = moment(date, 'YYYYMMDD').subtract(3, 'days').format('YYYYMMDD');
-                    const targetMinusThreeNum = parseInt(targetMinusThree);
-                    
-                    let closestDate = null;
-                    for (const availableDate of availableDates) {
-                        if (availableDate <= targetMinusThreeNum && (!closestDate || availableDate > closestDate)) {
-                            closestDate = availableDate;
-                        }
-                    }
-                    
-                    if (closestDate) {
-                        dateIndex = dateToIndexMap[closestDate];
-                    }
-                }
-            } else {
-                // 月線：找到最接近但不超過目標日期的交易日
+            }
+
+            if (dateIndex === -1) {
+                const targetMinusThree = moment(date, 'YYYYMMDD').subtract(3, 'days').format('YYYYMMDD');
+                const targetMinusThreeNum = parseInt(targetMinusThree);
+
                 let closestDate = null;
                 for (const availableDate of availableDates) {
-                    if (availableDate <= targetDateNum && (!closestDate || availableDate > closestDate)) {
+                    if (availableDate <= targetMinusThreeNum && (!closestDate || availableDate > closestDate)) {
                         closestDate = availableDate;
                     }
                 }
-                
+
                 if (closestDate) {
                     dateIndex = dateToIndexMap[closestDate];
                 }
             }
-            
-            if (dateIndex === -1) {
-                return null;
+        } else {
+            let closestDate = null;
+            for (const availableDate of availableDates) {
+                if (availableDate <= targetDateNum && (!closestDate || availableDate > closestDate)) {
+                    closestDate = availableDate;
+                }
             }
-            
-            // 確保索引是有效的
-            if (dateIndex + 1 >= tickData.length) {
-                return null;
+
+            if (closestDate) {
+                dateIndex = dateToIndexMap[closestDate];
             }
-            
-            const _this = tickData[dateIndex + 1];
-            const _last = tickData[dateIndex];
-            
-            if (!_this || !_last) {
-                return null;
-            }
-            const last_value = _last.v;
-            const this_open = _this.o;
-            const this_low = _this.l;
-            const last_high = _last.h;
-            
-            if (this_open > last_high && this_open > 15 && last_value > 100) {
-                let success = {
-                    stockCode: target.code,
-                    lastHight: last_high,
-                    thisOpen: this_open,
-                    thisLow: this_low,
-                    date,
-                    lastValue: last_value,
-                };
-                return success;
-            }
+        }
+
+        if (dateIndex === -1) {
+            console.warn(`No matching date found for ${target.code}.${target.Market}, date=${date}`);
             return null;
         }
+
+        if (dateIndex + 1 >= tickData.length) {
+            console.warn(`Insufficient future data for ${target.code}.${target.Market}, dateIndex=${dateIndex}`);
+            return null;
+        }
+
+        const _this = tickData[dateIndex + 1];
+        const _last = tickData[dateIndex];
+
+        if (!_this || !_last) {
+            console.warn(`Invalid data points for ${target.code}.${target.Market}`, { tickData, _this, _last });
+            return null;
+        }
+
+        const last_value = parseInt(Math.round(_last.v / 1000)); 
+        const this_open = Math.round(_this.o * 100) / 100;
+        const this_low = Math.round(_this.l * 100) / 100;
+        const last_high = Math.round(_last.h * 100) / 100;
+
+        if (this_open > last_high && this_open > 15 && last_value > 100) {
+            let success = {
+                stockCode: target.code,
+                lastHight: last_high,
+                thisOpen: this_open,
+                thisLow: this_low,
+                date,
+                lastValue: last_value,
+            };
+            return success;
+        }
         return null;
-    }  catch (error) {
-        console.error('Error fetching data for', target.code, ':', error.message);
+    } catch (error) {
+        console.error('Error fetching data for', `${target.code}.${target.Market}`, ':', error.message);
         return null;
     }
 }
 
+// 其他函數保持不變
 const createJumps = async (req, res) => {
     try {
         const { perd, date } = req.body;
@@ -171,11 +212,12 @@ const createJumps = async (req, res) => {
         return res.status(500).json({ message: errorHandler(error), success: false });
     }
 };
+
 const getJumpRecord = async (req, res) => {
     try {
         const { id } = req.params;
         if (!id) {
-            return res.status(400).json({ message: "Stock code is required", success: false });
+            return res.status(400).json({ message: 'Stock code is required', success: false });
         }
 
         // Fix: Properly define the association query
@@ -184,17 +226,17 @@ const getJumpRecord = async (req, res) => {
                 {
                     model: Stock,
                     where: { code: id },
-                    required: true
+                    required: true,
                 },
                 {
                     model: JumpsRecord,
-                    required: false
-                }
-            ]
+                    required: false,
+                },
+            ],
         });
 
         if (!jump) {
-            return res.status(200).json({ message: "Jump record not found", data: {}, success: true });
+            return res.status(200).json({ message: 'Jump record not found', data: {}, success: true });
         }
 
         let newestRecord = null;
@@ -204,7 +246,7 @@ const getJumpRecord = async (req, res) => {
         let jumpCount_m = 0;
         let jumpCount_m_c = 0;
 
-        jump.JumpsRecords.forEach(record => {
+        jump.JumpsRecords.forEach((record) => {
             if (record.type === 'w') {
                 if (record.closed) jumpCount_w_c++;
                 jumpCount_w++;
@@ -428,38 +470,38 @@ const deleteJump = async (req, res) => {
 };
 const bulkDeleteJumps = async (req, res) => {
     try {
-      const { ids } = req.body; 
-      
-      if (!Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).send({
-          message: 'IDs format error',
-          success: false
+        const { ids } = req.body;
+
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).send({
+                message: 'IDs format error',
+                success: false,
+            });
+        }
+
+        const deletedCount = await Jump.destroy({
+            where: { id: ids },
         });
-      }
-      
-      const deletedCount = await Jump.destroy({
-        where: { id: ids } 
-      });
-      
-      if (deletedCount > 0) {
-        return res.status(200).send({
-          message: `Successful deleted`,
-          success: true,
-          deletedCount
-        });
-      } else {
-        return res.status(400).send({
-          message: 'ID does not exists',
-          success: false
-        });
-      }
+
+        if (deletedCount > 0) {
+            return res.status(200).send({
+                message: `Successful deleted`,
+                success: true,
+                deletedCount,
+            });
+        } else {
+            return res.status(400).send({
+                message: 'ID does not exists',
+                success: false,
+            });
+        }
     } catch (error) {
-      return res.status(500).send({
-        message: errorHandler(error),
-        success: false
-      });
+        return res.status(500).send({
+            message: errorHandler(error),
+            success: false,
+        });
     }
-  };
+};
 
 const deleteJumpsRecord = async (req, res) => {
     try {
@@ -511,5 +553,5 @@ module.exports = {
     updateIfClosed,
     deleteJumpsRecords,
     getJumpRecord,
-    bulkDeleteJumps
+    bulkDeleteJumps,
 };

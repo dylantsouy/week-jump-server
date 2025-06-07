@@ -24,6 +24,7 @@ router
     .delete('/admins/:id', [verifyToken], AdminControllers.deleteAdmin);
 
 router.post('/stocks', [verifyToken], StockControllers.createStocks);
+router.post('/stocks/check', [verifyToken], StockControllers.checkStocks);
 router.get('/stocks/codes', [verifyToken], StockControllers.getAllStockCodes);
 
 router.get('/targets', [verifyToken], TargetControllers.getAllTargets);
