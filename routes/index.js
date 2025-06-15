@@ -10,6 +10,9 @@ const ObserveControllers = require('../controllers/observe');
 const QuoteControllers = require('../controllers/quote');
 const LoanControllers = require('../controllers/loan');
 const verifyToken = require('../middlewares/authJwt');
+const TradingControllers = require('../controllers/trading');
+const BuyReasonControllers = require('../controllers/buyReason');
+const ChecklistControllers = require('../controllers/checkList');
 
 router.get('/ping', (req, res) => {
     res.status(200).send('pong');
@@ -74,5 +77,33 @@ router.get('/loans', [verifyToken], LoanControllers.getAllLoans);
 router.get('/loans/:code', [verifyToken], LoanControllers.getLoanRecords);
 router.post('/loans', [verifyToken], LoanControllers.createLoanRankings);
 router.delete('/bulkDeleteLoan', [verifyToken], LoanControllers.bulkDeleteLoan);
+
+router.get('/buyreasons', [verifyToken], BuyReasonControllers.getAllBuyReasons);
+router.get('/buyreasons/deleted', [verifyToken], BuyReasonControllers.getDeletedBuyReasons);
+router.get('/buyreasons/:id', [verifyToken], BuyReasonControllers.getBuyReasonById);
+router.post('/buyreasons', [verifyToken], BuyReasonControllers.createBuyReason);
+router.put('/buyreasons/:id', [verifyToken], BuyReasonControllers.updateBuyReason);
+router.delete('/buyreasons/:id', [verifyToken], BuyReasonControllers.deleteBuyReason);
+router.post('/buyreasons/:id/restore', [verifyToken], BuyReasonControllers.restoreBuyReason);
+router.delete('/buyreasons/:id/force', [verifyToken], BuyReasonControllers.forceDeleteBuyReason);
+
+router.get('/trading-records', [verifyToken], TradingControllers.getAllTradingRecords);
+router.get('/trading-records/statistics', [verifyToken], TradingControllers.getTradingStatistics);
+router.get('/trading-records/:id', [verifyToken], TradingControllers.getTradingRecordById);
+router.post('/trading-records', [verifyToken], TradingControllers.createTradingRecord);
+router.put('/trading-records/:id', [verifyToken], TradingControllers.updateTradingRecord);
+router.delete('/trading-records/:id', [verifyToken], TradingControllers.deleteTradingRecord);
+router.put('/trading-records/:id/checklist', [verifyToken], TradingControllers.updateCheckListStatus);
+
+router.get('/checklists', [verifyToken], ChecklistControllers.getAllCheckLists);
+router.get('/checklists/active', [verifyToken], ChecklistControllers.getActiveCheckLists);
+router.put('/checklists/reorder', [verifyToken], ChecklistControllers.reorderCheckListsByIds);
+router.put('/checklists/reorder-batch', [verifyToken], ChecklistControllers.reorderCheckLists);
+router.get('/checklists/:id/usage', [verifyToken], ChecklistControllers.getCheckListUsage);
+router.get('/checklists/:id', [verifyToken], ChecklistControllers.getCheckListById);
+router.post('/checklists', [verifyToken], ChecklistControllers.createCheckList);
+router.put('/checklists/:id', [verifyToken], ChecklistControllers.updateCheckList);
+router.patch('/checklists/:id/toggle', [verifyToken], ChecklistControllers.toggleCheckList);
+router.delete('/checklists/:id', [verifyToken], ChecklistControllers.deleteCheckList);
 
 module.exports = router;

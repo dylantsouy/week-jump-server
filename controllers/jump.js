@@ -4,21 +4,6 @@ const { stock_codes } = require('../saveData');
 const { errorHandler } = require('../helpers/responseHelper');
 const moment = require('moment');
 
-const header = {
-    accept: '*/*',
-    'accept-encoding': 'gzip, deflate, br',
-    'accept-language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
-    cookie: 'A3=d=AQABBOGBUGQCEP6cgdsdSEF1dvVn1mTfaU8FEgEBAQHTUWRaZL2oQDIB_eMAAA&S=AQAAAmEM9Ji_q1hxehjb6NgQl8k',
-    referer: 'https://s.yimg.com/nb/tw_stock_frontend/scripts/TaChart/tachart.14b50e7f13.html?sid=6138&w=868',
-    'sec-ch-ua': '"Chromium";v="112", "Google Chrome";v="112", "Not:A-Brand";v="99"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-    'sec-fetch-dest': 'script',
-    'sec-fetch-mode': 'no-cors',
-    'sec-fetch-site': 'cross-site',
-    'user-agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
-};
 async function fetchData(target, perd, date) {
     // Validate perd parameter
     if (!['w', 'm'].includes(perd)) {
@@ -28,10 +13,29 @@ async function fetchData(target, perd, date) {
 
     // Map perd to valid interval
     const interval = perd === 'w' ? '1wk' : '1mo';
-    const yahooStockUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${target.code}.${target.Market}?metrics=history&interval=${interval}&range=1mo`;
+
+    // Calculate minimal range needed
+    const targetDate = moment(date, 'YYYYMMDD');
+    const currentDate = moment();
+
+    let range;
+
+    if (perd === 'w') {
+        // For weekly data, we need minimal data: target week + previous week + some buffer
+        // Usually just need 3-4 weeks of data maximum
+        const weeksDiff = Math.abs(currentDate.diff(targetDate, 'weeks'));
+        
+        range = `${weeksDiff + 2}wk`;
+    } else {
+        // For monthly data, similar minimal approach
+        const monthsDiff = Math.abs(currentDate.diff(targetDate, 'months'));
+        range = `${monthsDiff + 2}mo`;
+    }
+
+    const yahooStockUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${target.code}.${target.Market}?metrics=history&interval=${interval}&range=${range}`;
 
     try {
-        const response = await axios.get(yahooStockUrl, { headers: header });
+        const response = await axios.get(yahooStockUrl);
         const data = response.data;
 
         // Check for API errors
@@ -87,32 +91,43 @@ async function fetchData(target, perd, date) {
             dateToIndexMap[parseInt(item.t)] = index;
         });
 
-        // Date lookup logic
+        // Date lookup logic - find the target date as _this
         if (perd === 'w') {
-            for (const availableDate of availableDates) {
-                const adjDate = moment(availableDate.toString(), 'YYYYMMDD').add(3, 'days').format('YYYYMMDD');
-                if (adjDate === date) {
-                    dateIndex = dateToIndexMap[availableDate];
-                    break;
-                }
-            }
+            // For weekly data, we need to find which week the target date belongs to
+            // Target date 20250609 should match the week that contains this date
 
-            if (dateIndex === -1) {
-                const targetMinusThree = moment(date, 'YYYYMMDD').subtract(3, 'days').format('YYYYMMDD');
-                const targetMinusThreeNum = parseInt(targetMinusThree);
+            let targetWeekDate = null;
 
+            // First try exact match
+            if (dateToIndexMap[targetDateNum]) {
+                targetWeekDate = targetDateNum;
+            } else {
+                // Find the week that contains the target date
+                // Look for the closest available date that is <= target date
                 let closestDate = null;
                 for (const availableDate of availableDates) {
-                    if (availableDate <= targetMinusThreeNum && (!closestDate || availableDate > closestDate)) {
+                    if (availableDate <= targetDateNum && (!closestDate || availableDate > closestDate)) {
                         closestDate = availableDate;
                     }
                 }
 
+                // If we found a date within the same week (within 6 days), use it
                 if (closestDate) {
-                    dateIndex = dateToIndexMap[closestDate];
+                    const daysDiff = moment(targetDateNum.toString(), 'YYYYMMDD').diff(
+                        moment(closestDate.toString(), 'YYYYMMDD'),
+                        'days'
+                    );
+                    if (daysDiff <= 6) {
+                        targetWeekDate = closestDate;
+                    }
                 }
             }
+
+            if (targetWeekDate) {
+                dateIndex = dateToIndexMap[targetWeekDate];
+            }
         } else {
+            // For monthly data, find the closest date that matches or is closest to the target date
             let closestDate = null;
             for (const availableDate of availableDates) {
                 if (availableDate <= targetDateNum && (!closestDate || availableDate > closestDate)) {
@@ -130,20 +145,25 @@ async function fetchData(target, perd, date) {
             return null;
         }
 
-        if (dateIndex + 1 >= tickData.length) {
-            console.warn(`Insufficient future data for ${target.code}.${target.Market}, dateIndex=${dateIndex}`);
+        // Check if we have a previous data point (dateIndex should be > 0)
+        if (dateIndex === 0) {
+            console.warn(
+                `No previous data point available for ${target.code}.${target.Market}, dateIndex=${dateIndex}`
+            );
             return null;
         }
 
-        const _this = tickData[dateIndex + 1];
-        const _last = tickData[dateIndex];
+        // _this is the data point for the input date, _last is the previous data point
+        const _this = tickData[dateIndex];
+        const _last = tickData[dateIndex - 1];
+        console.log({ interval, range, tickData, dateIndex, _this, _last, code: target.code });
 
         if (!_this || !_last) {
             console.warn(`Invalid data points for ${target.code}.${target.Market}`, { tickData, _this, _last });
             return null;
         }
 
-        const last_value = parseInt(Math.round(_last.v / 1000)); 
+        const last_value = parseInt(Math.round(_last.v / 1000));
         const this_open = Math.round(_this.o * 100) / 100;
         const this_low = Math.round(_this.l * 100) / 100;
         const last_high = Math.round(_last.h * 100) / 100;
@@ -156,6 +176,8 @@ async function fetchData(target, perd, date) {
                 thisLow: this_low,
                 date,
                 lastValue: last_value,
+                thisDate: _this.t,
+                lastDate: _last.t,
             };
             return success;
         }
