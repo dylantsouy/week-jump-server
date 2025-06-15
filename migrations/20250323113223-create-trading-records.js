@@ -20,7 +20,7 @@ module.exports = {
             },
             buyReasonId: {
                 allowNull: false,
-                type: Sequelize.INTEGER,
+                type: Sequelize.UUID,
                 references: {
                     model: 'BuyReasons',
                     key: 'id',
