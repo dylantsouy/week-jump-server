@@ -3,7 +3,6 @@ const axios = require('axios');
 const { stock_codes } = require('../saveData');
 const { errorHandler } = require('../helpers/responseHelper');
 const moment = require('moment');
-
 async function fetchData(target, perd, date) {
     // Validate perd parameter
     if (!['w', 'm'].includes(perd)) {
@@ -66,8 +65,8 @@ async function fetchData(target, perd, date) {
             return null;
         }
 
-        // Construct tickData
-        const tickData = timestamps.map((timestamp, index) => ({
+        // Construct tickData and filter out invalid entries
+        const rawTickData = timestamps.map((timestamp, index) => ({
             t: moment.unix(timestamp).format('YYYYMMDD'),
             o: quoteData.open[index],
             h: quoteData.high[index],
@@ -76,8 +75,33 @@ async function fetchData(target, perd, date) {
             v: quoteData.volume[index],
         }));
 
+        // Filter out invalid data points (null values) and handle duplicates
+        const tickData = [];
+        const datesSeen = new Set();
+        
+        for (const item of rawTickData) {
+            // Skip if any price data is null/undefined
+            if (item.o === null || item.o === undefined || 
+                item.h === null || item.h === undefined || 
+                item.l === null || item.l === undefined || 
+                item.c === null || item.c === undefined ||
+                item.v === null || item.v === undefined) {
+                console.warn(`Skipping invalid data point for ${target.code}.${target.Market} on ${item.t}:`, item);
+                continue;
+            }
+            
+            // Skip duplicates - keep the first valid occurrence
+            if (datesSeen.has(item.t)) {
+                console.warn(`Skipping duplicate date ${item.t} for ${target.code}.${target.Market}`);
+                continue;
+            }
+            
+            datesSeen.add(item.t);
+            tickData.push(item);
+        }
+
         if (tickData.length < 2) {
-            console.warn(`Insufficient data points for ${target.code}.${target.Market}: length=${tickData.length}`);
+            console.warn(`Insufficient valid data points for ${target.code}.${target.Market}: length=${tickData.length}`);
             return null;
         }
 
@@ -156,7 +180,7 @@ async function fetchData(target, perd, date) {
         // _this is the data point for the input date, _last is the previous data point
         const _this = tickData[dateIndex];
         const _last = tickData[dateIndex - 1];
-        console.log({ interval, range, tickData, dateIndex, _this, _last, code: target.code });
+        // console.log({ interval, range, tickData, dateIndex, _this, _last, code: target.code });
 
         if (!_this || !_last) {
             console.warn(`Invalid data points for ${target.code}.${target.Market}`, { tickData, _this, _last });
