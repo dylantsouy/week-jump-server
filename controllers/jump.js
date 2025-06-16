@@ -92,7 +92,7 @@ async function fetchData(target, perd, date) {
             
             // Skip duplicates - keep the first valid occurrence
             if (datesSeen.has(item.t)) {
-                console.warn(`Skipping duplicate date ${item.t} for ${target.code}.${target.Market}`);
+                // console.warn(`Skipping duplicate date ${item.t} for ${target.code}.${target.Market}`);
                 continue;
             }
             
