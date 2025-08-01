@@ -1,231 +1,391 @@
+
 const { Jump, JumpsRecord, Stock } = require('../models');
 const axios = require('axios');
 const { stock_codes } = require('../saveData');
 const { errorHandler } = require('../helpers/responseHelper');
 const moment = require('moment');
-async function fetchData(target, perd, date) {
-    // Validate perd parameter
-    if (!['w', 'm'].includes(perd)) {
-        console.error(`Invalid perd value for ${target.code}.${target.Market}: ${perd}`);
-        return null;
-    }
+const iconv = require('iconv-lite'); // 需要安裝: npm install iconv-lite
 
-    // Map perd to valid interval
-    const interval = perd === 'w' ? '1wk' : '1mo';
+// 數據驗證輔助函數
+const isValidPriceData = (record) => {
+    return record.o !== null && record.o !== undefined && 
+           record.h !== null && record.h !== undefined && 
+           record.l !== null && record.l !== undefined && 
+           record.c !== null && record.c !== undefined &&
+           record.v !== null && record.v !== undefined;
+};
 
-    // Calculate minimal range needed
-    const targetDate = moment(date, 'YYYYMMDD');
-    const currentDate = moment();
+const isReasonablePrice = (record) => {
+    return record.o > 0 && record.h > 0 && record.l > 0 && record.c > 0 &&
+           record.o < 10000 && record.h < 10000 && record.l < 10000 && record.c < 10000;
+};
 
-    let range;
+const isPriceLogicallyValid = (record) => {
+    return record.h >= record.l && 
+           record.h >= record.o && 
+           record.h >= record.c &&
+           record.l <= record.o && 
+           record.l <= record.c;
+};
 
-    if (perd === 'w') {
-        // For weekly data, we need minimal data: target week + previous week + some buffer
-        // Usually just need 3-4 weeks of data maximum
-        const weeksDiff = Math.abs(currentDate.diff(targetDate, 'weeks'));
+const isReasonableVolatility = (record) => {
+    const range = record.h - record.l;
+    const avgPrice = (record.h + record.l) / 2;
+    return avgPrice > 0 ? (range / avgPrice < 0.5) : false;
+};
+
+const calculateDataQualityScore = (record) => {
+    let score = 0;
+    
+    if (isValidPriceData(record)) score += 10;
+    if (isReasonablePrice(record)) score += 10;
+    if (isPriceLogicallyValid(record)) score += 20;
+    if (isReasonableVolatility(record)) score += 10;
+    
+    const volumeScore = Math.min((record.v || 0) / 1000000, 10);
+    score += volumeScore;
+    
+    return score;
+};
+
+// 解析 CSV 數據的輔助函數
+function parseCSVLine(line) {
+    const fields = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
         
-        range = `${weeksDiff + 2}wk`;
-    } else {
-        // For monthly data, similar minimal approach
-        const monthsDiff = Math.abs(currentDate.diff(targetDate, 'months'));
-        range = `${monthsDiff + 2}mo`;
-    }
-
-    const yahooStockUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${target.code}.${target.Market}?metrics=history&interval=${interval}&range=${range}`;
-
-    try {
-        const response = await axios.get(yahooStockUrl);
-        const data = response.data;
-
-        // Check for API errors
-        if (!data.chart || data.chart.error || !data.chart.result || !data.chart.result[0]) {
-            console.error(`API error for ${target.code}.${target.Market}:`, data.chart?.error || 'No result');
-            return null;
-        }
-
-        const result = data.chart.result[0];
-        const timestamps = result.timestamp;
-        const quoteData = result.indicators?.quote?.[0];
-
-        // Validate timestamps and quoteData
-        if (!Array.isArray(timestamps) || !quoteData || !Array.isArray(quoteData.open)) {
-            console.error(`Missing or invalid data for ${target.code}.${target.Market}:`, {
-                hasTimestamps: !!timestamps,
-                hasQuoteData: !!quoteData,
-                hasOpen: !!quoteData?.open,
-            });
-            return null;
-        }
-
-        // Ensure data lengths match
-        if (timestamps.length !== quoteData.open.length) {
-            console.error(
-                `Data length mismatch for ${target.code}.${target.Market}: timestamps=${timestamps.length}, open=${quoteData.open.length}`
-            );
-            return null;
-        }
-
-        // Construct tickData and filter out invalid entries
-        const rawTickData = timestamps.map((timestamp, index) => ({
-            t: moment.unix(timestamp).format('YYYYMMDD'),
-            o: quoteData.open[index],
-            h: quoteData.high[index],
-            l: quoteData.low[index],
-            c: quoteData.close[index],
-            v: quoteData.volume[index],
-        }));
-
-        // Filter out invalid data points (null values) and handle duplicates
-        const tickData = [];
-        const datesSeen = new Set();
-        
-        for (const item of rawTickData) {
-            // Skip if any price data is null/undefined
-            if (item.o === null || item.o === undefined || 
-                item.h === null || item.h === undefined || 
-                item.l === null || item.l === undefined || 
-                item.c === null || item.c === undefined ||
-                item.v === null || item.v === undefined) {
-                console.warn(`Skipping invalid data point for ${target.code}.${target.Market} on ${item.t}:`, item);
-                continue;
-            }
-            
-            // Skip duplicates - keep the first valid occurrence
-            if (datesSeen.has(item.t)) {
-                // console.warn(`Skipping duplicate date ${item.t} for ${target.code}.${target.Market}`);
-                continue;
-            }
-            
-            datesSeen.add(item.t);
-            tickData.push(item);
-        }
-
-        if (tickData.length < 2) {
-            console.warn(`Insufficient valid data points for ${target.code}.${target.Market}: length=${tickData.length}`);
-            return null;
-        }
-
-        let dateIndex = -1;
-        const targetDateNum = parseInt(date);
-
-        // Sort and map available dates
-        const availableDates = tickData.map((item) => parseInt(item.t)).sort((a, b) => a - b);
-        const dateToIndexMap = {};
-        tickData.forEach((item, index) => {
-            dateToIndexMap[parseInt(item.t)] = index;
-        });
-
-        // Date lookup logic - find the target date as _this
-        if (perd === 'w') {
-            // For weekly data, we need to find which week the target date belongs to
-            // Target date 20250609 should match the week that contains this date
-
-            let targetWeekDate = null;
-
-            // First try exact match
-            if (dateToIndexMap[targetDateNum]) {
-                targetWeekDate = targetDateNum;
-            } else {
-                // Find the week that contains the target date
-                // Look for the closest available date that is <= target date
-                let closestDate = null;
-                for (const availableDate of availableDates) {
-                    if (availableDate <= targetDateNum && (!closestDate || availableDate > closestDate)) {
-                        closestDate = availableDate;
-                    }
-                }
-
-                // If we found a date within the same week (within 6 days), use it
-                if (closestDate) {
-                    const daysDiff = moment(targetDateNum.toString(), 'YYYYMMDD').diff(
-                        moment(closestDate.toString(), 'YYYYMMDD'),
-                        'days'
-                    );
-                    if (daysDiff <= 6) {
-                        targetWeekDate = closestDate;
-                    }
-                }
-            }
-
-            if (targetWeekDate) {
-                dateIndex = dateToIndexMap[targetWeekDate];
-            }
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            fields.push(current.trim());
+            current = '';
         } else {
-            // For monthly data, find the closest date that matches or is closest to the target date
-            let closestDate = null;
-            for (const availableDate of availableDates) {
-                if (availableDate <= targetDateNum && (!closestDate || availableDate > closestDate)) {
-                    closestDate = availableDate;
+            current += char;
+        }
+    }
+    fields.push(current.trim());
+    return fields;
+}
+
+// 從台灣證交所獲取單日資料
+async function fetchTWSEDailyData(date) {
+    try {
+        const url = `https://www.twse.com.tw/exchangeReport/MI_INDEX?response=csv&date=${date}&type=ALL`;
+        
+        const response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            timeout: 15000
+        });
+        
+        const csvData = iconv.decode(response.data, 'big5');
+        const lines = csvData.split('\n').filter(line => line.trim());
+        
+        let dataStartIndex = -1;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes('證券代號') || lines[i].includes('Security Code')) {
+                dataStartIndex = i;
+                break;
+            }
+        }
+        
+        if (dataStartIndex === -1) {
+            return {};
+        }
+        
+        const stockData = {};
+        
+        for (let i = dataStartIndex + 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            
+            const fields = parseCSVLine(line);
+            if (fields.length < 9) continue;
+            
+            const stockCode = fields[0]?.replace(/"/g, '').trim();
+            if (!stockCode || stockCode.length !== 4) continue;
+            
+            try {
+                const volume = parseInt(fields[2]?.replace(/[",]/g, '')) || 0;
+                const open = parseFloat(fields[5]?.replace(/[",]/g, '')) || 0;
+                const high = parseFloat(fields[6]?.replace(/[",]/g, '')) || 0;
+                const low = parseFloat(fields[7]?.replace(/[",]/g, '')) || 0;
+                const close = parseFloat(fields[8]?.replace(/[",]/g, '')) || 0;
+                
+                if (open > 0 && high > 0 && low > 0 && close > 0) {
+                    stockData[stockCode] = {
+                        t: date,
+                        o: open,
+                        h: high,
+                        l: low,
+                        c: close,
+                        v: volume
+                    };
                 }
-            }
-
-            if (closestDate) {
-                dateIndex = dateToIndexMap[closestDate];
+            } catch (error) {
+                continue; // 跳過解析錯誤的資料
             }
         }
-
-        if (dateIndex === -1) {
-            console.warn(`No matching date found for ${target.code}.${target.Market}, date=${date}`);
-            return null;
-        }
-
-        // Check if we have a previous data point (dateIndex should be > 0)
-        if (dateIndex === 0) {
-            console.warn(
-                `No previous data point available for ${target.code}.${target.Market}, dateIndex=${dateIndex}`
-            );
-            return null;
-        }
-
-        // _this is the data point for the input date, _last is the previous data point
-        const _this = tickData[dateIndex];
-        const _last = tickData[dateIndex - 1];
-        // console.log({ interval, range, tickData, dateIndex, _this, _last, code: target.code });
-
-        if (!_this || !_last) {
-            console.warn(`Invalid data points for ${target.code}.${target.Market}`, { tickData, _this, _last });
-            return null;
-        }
-
-        const last_value = parseInt(Math.round(_last.v / 1000));
-        const this_open = Math.round(_this.o * 100) / 100;
-        const this_low = Math.round(_this.l * 100) / 100;
-        const last_high = Math.round(_last.h * 100) / 100;
-
-        if (this_open > last_high && this_open > 15 && last_value > 100) {
-            let success = {
-                stockCode: target.code,
-                lastHight: last_high,
-                thisOpen: this_open,
-                thisLow: this_low,
-                date,
-                lastValue: last_value,
-                thisDate: _this.t,
-                lastDate: _last.t,
-            };
-            return success;
-        }
-        return null;
+        
+        return stockData;
+        
     } catch (error) {
-        console.error('Error fetching data for', `${target.code}.${target.Market}`, ':', error.message);
-        return null;
+        console.error(`Error fetching TWSE data for ${date}:`, error.message);
+        return {};
     }
 }
 
-// 其他函數保持不變
+// 獲取週線/月線需要的完整交易日期範圍
+function getTradingDatesForPeriod(targetDate, perd) {
+    const dates = [];
+    const target = moment(targetDate, 'YYYYMMDD');
+    
+    if (perd === 'w') {
+        // 週線：需要本週 + 上週的所有交易日
+        const thisWeekStart = target.clone().startOf('week'); // 週一
+        const lastWeekStart = thisWeekStart.clone().subtract(1, 'week');
+        
+        // 收集兩週的交易日
+        for (let week = 0; week < 2; week++) {
+            const weekStart = week === 0 ? thisWeekStart : lastWeekStart;
+            
+            for (let day = 0; day < 7; day++) {
+                const date = weekStart.clone().add(day, 'days');
+                
+                // 跳過週末
+                if (date.day() === 0 || date.day() === 6) continue;
+                
+                // 本週不要超過目標日期
+                if (week === 0 && date.isAfter(target)) continue;
+                
+                dates.push({
+                    date: date.format('YYYYMMDD'),
+                    week: week === 0 ? 'thisWeek' : 'lastWeek',
+                    weekStart: weekStart.format('YYYYMMDD')
+                });
+            }
+        }
+    } else if (perd === 'm') {
+        // 月線：需要本月 + 上月的所有交易日
+        const thisMonthStart = target.clone().startOf('month');
+        const lastMonthStart = thisMonthStart.clone().subtract(1, 'month');
+        
+        // 收集兩個月的交易日
+        for (let month = 0; month < 2; month++) {
+            const monthStart = month === 0 ? thisMonthStart : lastMonthStart;
+            const monthEnd = monthStart.clone().endOf('month');
+            
+            let currentDay = monthStart.clone();
+            while (currentDay.isSameOrBefore(monthEnd)) {
+                // 跳過週末
+                if (currentDay.day() !== 0 && currentDay.day() !== 6) {
+                    // 本月不要超過目標日期
+                    if (month === 0 && currentDay.isAfter(target)) {
+                        break;
+                    }
+                    
+                    dates.push({
+                        date: currentDay.format('YYYYMMDD'),
+                        month: month === 0 ? 'thisMonth' : 'lastMonth',
+                        monthStart: monthStart.format('YYYYMMDD')
+                    });
+                }
+                currentDay.add(1, 'day');
+            }
+        }
+    }
+    
+    return dates;
+}
+
+// 合併週線K線資料
+function aggregateToWeeklyKLine(dailyDataArray) {
+    if (!dailyDataArray || dailyDataArray.length === 0) return null;
+    
+    // 按日期排序
+    const sortedData = dailyDataArray.sort((a, b) => parseInt(a.t) - parseInt(b.t));
+    
+    const weeklyK = {
+        t: sortedData[0].t, // 使用第一個交易日作為週期標記
+        o: sortedData[0].o, // 週開盤 = 第一個交易日開盤
+        h: Math.max(...sortedData.map(d => d.h)), // 週最高 = 所有交易日最高價
+        l: Math.min(...sortedData.map(d => d.l)), // 週最低 = 所有交易日最低價
+        c: sortedData[sortedData.length - 1].c, // 週收盤 = 最後一個交易日收盤
+        v: sortedData.reduce((sum, d) => sum + d.v, 0) // 週成交量 = 累加
+    };
+    
+    return weeklyK;
+}
+
+// 合併月線K線資料
+function aggregateToMonthlyKLine(dailyDataArray) {
+    if (!dailyDataArray || dailyDataArray.length === 0) return null;
+    
+    // 按日期排序
+    const sortedData = dailyDataArray.sort((a, b) => parseInt(a.t) - parseInt(b.t));
+    
+    const monthlyK = {
+        t: sortedData[0].t, // 使用第一個交易日作為月期標記
+        o: sortedData[0].o, // 月開盤 = 第一個交易日開盤
+        h: Math.max(...sortedData.map(d => d.h)), // 月最高 = 所有交易日最高價
+        l: Math.min(...sortedData.map(d => d.l)), // 月最低 = 所有交易日最低價
+        c: sortedData[sortedData.length - 1].c, // 月收盤 = 最後一個交易日收盤
+        v: sortedData.reduce((sum, d) => sum + d.v, 0) // 月成交量 = 累加
+    };
+    
+    return monthlyK;
+}
+
+// 優化的批量處理函數
+async function fetchOptimizedBatchData(targets, perd, date) {
+    try {
+        // 獲取需要的所有交易日期
+        const tradingDateDetails = getTradingDatesForPeriod(date, perd);
+        
+        if (tradingDateDetails.length === 0) {
+            console.warn(`No trading dates found for ${date}`);
+            return [];
+        }
+        
+        console.log(`Found ${tradingDateDetails.length} trading dates to fetch`);
+        
+        // 一次性獲取所有日期的完整市場資料
+        const allMarketData = new Map(); // date -> { stockCode: data }
+        
+        // 去重日期
+        const uniqueDates = [...new Set(tradingDateDetails.map(d => d.date))];
+        
+        for (const tradingDate of uniqueDates) {
+            console.log(`Fetching market data for ${tradingDate}...`);
+            const dailyMarketData = await fetchTWSEDailyData(tradingDate);
+            allMarketData.set(tradingDate, dailyMarketData);
+            
+            // 請求間隔，避免被封鎖
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        console.log(`Market data fetched. Processing ${targets.length} stocks...`);
+        
+        // 批量處理所有目標股票
+        const results = [];
+        
+        for (const target of targets) {
+            try {
+                // 收集該股票的所有日線資料
+                const stockDailyData = [];
+                
+                for (const dateDetail of tradingDateDetails) {
+                    const marketData = allMarketData.get(dateDetail.date);
+                    if (marketData && marketData[target.code]) {
+                        stockDailyData.push({
+                            ...marketData[target.code],
+                            period: perd === 'w' ? dateDetail.week : dateDetail.month,
+                            periodStart: perd === 'w' ? dateDetail.weekStart : dateDetail.monthStart
+                        });
+                    }
+                }
+                
+                if (stockDailyData.length === 0) {
+                    continue; // 沒有資料的股票跳過
+                }
+                
+                // 按週期分組資料
+                const periodGroups = {};
+                stockDailyData.forEach(data => {
+                    const groupKey = data.period;
+                    if (!periodGroups[groupKey]) {
+                        periodGroups[groupKey] = [];
+                    }
+                    periodGroups[groupKey].push(data);
+                });
+                
+                // 生成週K或月K
+                const thisK = perd === 'w' ? 
+                    aggregateToWeeklyKLine(periodGroups['thisWeek'] || periodGroups['thisMonth']) :
+                    aggregateToMonthlyKLine(periodGroups['thisMonth']);
+                    
+                const lastK = perd === 'w' ? 
+                    aggregateToWeeklyKLine(periodGroups['lastWeek'] || periodGroups['lastMonth']) :
+                    aggregateToMonthlyKLine(periodGroups['lastMonth']);
+                
+                if (!thisK || !lastK) {
+                    continue; // 無法生成完整K線的股票跳過
+                }
+                
+                // 驗證K線資料品質
+                if (!isValidPriceData(thisK) || !isValidPriceData(lastK)) {
+                    continue;
+                }
+                
+                if (!isReasonablePrice(thisK) || !isReasonablePrice(lastK)) {
+                    continue;
+                }
+                
+                if (!isPriceLogicallyValid(thisK) || !isPriceLogicallyValid(lastK)) {
+                    continue;
+                }
+                
+                // 跳空檢測邏輯 - 週K/月K vs 上週K/上月K
+                const last_value = parseInt(Math.round(lastK.v / 1000));
+                const this_open = Math.round(thisK.o * 100) / 100;
+                const this_low = Math.round(thisK.l * 100) / 100;
+                const last_high = Math.round(lastK.h * 100) / 100;
+                
+                // 向上跳空條件：本週/月開盤價 > 上週/月最高價
+                if (this_open > last_high && this_open > 10) {
+                    results.push({
+                        stockCode: target.code,
+                        lastHight: last_high,
+                        thisOpen: this_open,
+                        thisLow: this_low,
+                        date,
+                        lastValue: last_value,
+                        thisDate: thisK.t,
+                        lastDate: lastK.t,
+                        periodType: perd,
+                        thisKLine: thisK,
+                        lastKLine: lastK
+                    });
+                    
+                    console.log(`${perd.toUpperCase()} Jump found for ${target.code}: Last ${perd}K High=${last_high} -> This ${perd}K Open=${this_open}`);
+                }
+                
+            } catch (error) {
+                console.error(`Error processing ${target.code}:`, error.message);
+                continue;
+            }
+        }
+        
+        return results;
+        
+    } catch (error) {
+        console.error('Error in fetchOptimizedBatchData:', error.message);
+        return [];
+    }
+}
+
+// === 主要業務邏輯函數 ===
+
 const createJumps = async (req, res) => {
     try {
         const { perd, date } = req.body;
         if (!perd || !date) {
             return res.status(400).json({ message: 'please fill required field', success: false });
         }
-        const data = [];
-        for (const target of stock_codes) {
-            const result = await fetchData(target, perd, date);
-            if (result) {
-                data.push(result);
-            }
+        
+        if (!['w', 'm'].includes(perd)) {
+            return res.status(400).json({ message: 'perd must be "w" or "m"', success: false });
         }
+        
+        console.log(`Starting ${perd === 'w' ? 'weekly' : 'monthly'} K-line jump detection for ${stock_codes.length} stocks...`);
+        
+        // 使用優化後的批量處理
+        const data = await fetchOptimizedBatchData(stock_codes, perd, date);
+        
+        console.log(`${perd.toUpperCase()}-line jump detection completed. Found ${data.length} jump signals.`);
+        
         const createdJumps = [];
         for (const jumpData of data) {
             const { stockCode, lastHight, thisOpen, lastValue, thisLow } = jumpData;
@@ -250,10 +410,15 @@ const createJumps = async (req, res) => {
             }
             if (record) createdJumps.push({ code: stockCode });
         }
+        
         if (createdJumps.length === 0) {
             return res.status(400).json({ message: 'No new jumps created', success: false });
         }
-        return res.status(200).json({ message: 'Successful Created', newJumps: createdJumps, success: true });
+        return res.status(200).json({ 
+            message: 'Successful Created', 
+            newJumps: createdJumps, 
+            success: true 
+        });
     } catch (error) {
         return res.status(500).json({ message: errorHandler(error), success: false });
     }
@@ -266,7 +431,6 @@ const getJumpRecord = async (req, res) => {
             return res.status(400).json({ message: 'Stock code is required', success: false });
         }
 
-        // Fix: Properly define the association query
         let jump = await Jump.findOne({
             include: [
                 {
@@ -335,11 +499,6 @@ const getAllJumps = async (req, res) => {
 
         let result = [];
         let stockJumpCount = {};
-        // let industryCount = {};
-        // let maxIndustry = {
-        //     name: null,
-        //     count: 0,
-        // };
 
         jumps.forEach((jump) => {
             let newestRecordClosed = null;
@@ -403,18 +562,6 @@ const getAllJumps = async (req, res) => {
                 };
             }
 
-            // if (!industryCount[stockIndustry]) {
-            //     industryCount[stockIndustry] = 0;
-            // }
-            // industryCount[stockIndustry] += filteredRecords.length;
-
-            // if (industryCount[stockIndustry] > maxIndustry.count) {
-            //     maxIndustry = {
-            //         name: stockIndustry,
-            //         count: industryCount[stockIndustry],
-            //     };
-            // }
-
             if (filteredRecords.length) {
                 result.push({
                     ...jump.toJSON(),
@@ -426,7 +573,6 @@ const getAllJumps = async (req, res) => {
 
         const final = {
             result,
-            // maxIndustry,
         };
 
         return res.status(200).json({ data: final, success: true });
@@ -460,7 +606,7 @@ const updateJumpRecord = async (req, res) => {
         const { id } = req.params;
         const { type, closed, date, lastValue, jumpPrice, lastPrice } = req.body;
 
-        if (!type || !lastPrice || !closed || !date || !lastValue || !jumpPrice) {
+        if (!type || !lastPrice || closed === undefined || !date || !lastValue || !jumpPrice) {
             return res.status(400).json({ message: 'please fill required field', success: false });
         }
 
@@ -514,6 +660,7 @@ const deleteJump = async (req, res) => {
         return res.status(500).send({ message: errorHandler(error), success: false });
     }
 };
+
 const bulkDeleteJumps = async (req, res) => {
     try {
         const { ids } = req.body;
@@ -579,6 +726,7 @@ const deleteJumpsRecord = async (req, res) => {
         return res.status(500).send({ message: errorHandler(error), success: false });
     }
 };
+
 const deleteJumpsRecords = async (req, res) => {
     try {
         await JumpsRecord.destroy({
@@ -590,6 +738,7 @@ const deleteJumpsRecords = async (req, res) => {
         return res.status(500).json({ message: errorHandler(error), success: false });
     }
 };
+
 module.exports = {
     createJumps,
     getAllJumps,
