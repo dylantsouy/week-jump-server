@@ -584,7 +584,7 @@ const getAllJumps = async (req, res) => {
 
         return res
             .status(200)
-            .json({ data: final, success: tru, stockLastUpdated: stockLastUpdated?.updatedAt || null });
+            .json({ data: final, success: true, stockLastUpdated: stockLastUpdated?.updatedAt || null });
     } catch (error) {
         return res.status(500).send({ message: error.message, success: false });
     }
