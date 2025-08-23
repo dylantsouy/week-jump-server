@@ -27,27 +27,6 @@ const isPriceLogicallyValid = (record) => {
            record.l <= record.o && 
            record.l <= record.c;
 };
-
-const isReasonableVolatility = (record) => {
-    const range = record.h - record.l;
-    const avgPrice = (record.h + record.l) / 2;
-    return avgPrice > 0 ? (range / avgPrice < 0.5) : false;
-};
-
-const calculateDataQualityScore = (record) => {
-    let score = 0;
-    
-    if (isValidPriceData(record)) score += 10;
-    if (isReasonablePrice(record)) score += 10;
-    if (isPriceLogicallyValid(record)) score += 20;
-    if (isReasonableVolatility(record)) score += 10;
-    
-    const volumeScore = Math.min((record.v || 0) / 1000000, 10);
-    score += volumeScore;
-    
-    return score;
-};
-
 // 解析 CSV 數據的輔助函數
 function parseCSVLine(line) {
     const fields = [];

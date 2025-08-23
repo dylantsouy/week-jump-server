@@ -2,8 +2,6 @@ const { Stock, Loan } = require('../models');
 const { errorHandler } = require('../helpers/responseHelper');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const { Op } = require('sequelize');
-const moment = require('moment');
 
 const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
