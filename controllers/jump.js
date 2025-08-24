@@ -3,7 +3,7 @@ const axios = require('axios');
 const { stock_codes } = require('../saveData');
 const { errorHandler } = require('../helpers/responseHelper');
 const moment = require('moment');
-const iconv = require('iconv-lite'); // 需要安裝: npm install iconv-lite
+const iconv = require('iconv-lite');
 
 // 數據驗證輔助函數
 const isValidPriceData = (record) => {
@@ -43,6 +43,7 @@ const isPriceLogicallyValid = (record) => {
         record.l <= record.c
     );
 };
+
 // 解析 CSV 數據的輔助函數
 function parseCSVLine(line) {
     const fields = [];
@@ -120,13 +121,214 @@ async function fetchTWSEDailyData(date) {
                     };
                 }
             } catch (error) {
-                continue; // 跳過解析錯誤的資料
+                continue;
             }
         }
 
         return stockData;
     } catch (error) {
         console.error(`Error fetching TWSE data for ${date}:`, error.message);
+        return {};
+    }
+}
+
+// 格式化櫃買中心日期
+function formatDateForOTC(date) {
+    try {
+        const year = parseInt(date.substring(0, 4));
+        const month = date.substring(4, 6);
+        const day = date.substring(6, 8);
+        const rocYear = year - 1911;
+        
+        const formattedDate = `${rocYear}/${month}/${day}`;
+        // console.log(`Date conversion for OTC: ${date} -> ${formattedDate}`);
+        
+        return formattedDate;
+    } catch (error) {
+        console.error('Error formatting date for OTC:', error.message);
+        return date;
+    }
+}
+
+// 從櫃買中心獲取單日資料
+async function fetchOTCDailyData(date) {
+    try {
+        // console.log(`Fetching OTC data for date: ${date}`);
+        
+        const url = `https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php?l=zh-tw&d=${date}&se=AL`;
+        // console.log(`OTC API URL: ${url}`);
+        
+        const response = await axios.get(url, {
+            timeout: 20000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/javascript, */*; q=0.01',
+                'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
+                'Referer': 'https://www.tpex.org.tw/',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        // console.log('OTC API Response Status:', response.status);
+        
+        if (!response.data) {
+            console.warn('OTC API returned no data');
+            return {};
+        }
+        
+        const stockData = {};
+        let jsonData = response.data;
+        
+        if (typeof response.data === 'string') {
+            try {
+                jsonData = JSON.parse(response.data);
+            } catch (parseError) {
+                console.error('Failed to parse OTC response as JSON:', parseError.message);
+                return {};
+            }
+        }
+        
+        // console.log('OTC JSON structure:', Object.keys(jsonData));
+        
+        // 處理新的 tables 格式
+        if (jsonData.tables && Array.isArray(jsonData.tables) && jsonData.tables.length > 0) {
+            const table = jsonData.tables[0];
+            // console.log(`Found OTC table with ${table.totalCount} total records`);
+            
+            if (table.data && Array.isArray(table.data)) {
+                // console.log(`Processing ${table.data.length} OTC data records`);
+                
+                for (const row of table.data) {
+                    try {
+                        if (!Array.isArray(row) || row.length < 8) {
+                            continue;
+                        }
+                        
+                        // 根據新格式的欄位順序解析
+                        // ["代號","名稱","收盤 ","漲跌","開盤 ","最高 ","最低","成交股數  ",...]
+                        const stockCode = row[0]?.toString().trim();
+                        if (!stockCode || !/^\d{4}$/.test(stockCode)) continue;
+                        
+                        const closeStr = row[2]?.toString().replace(/[,\s]/g, '') || '0';
+                        const openStr = row[4]?.toString().replace(/[,\s]/g, '') || '0';
+                        const highStr = row[5]?.toString().replace(/[,\s]/g, '') || '0';
+                        const lowStr = row[6]?.toString().replace(/[,\s]/g, '') || '0';
+                        const volumeStr = row[7]?.toString().replace(/[,\s]/g, '') || '0';
+                        
+                        const close = parseFloat(closeStr) || 0;
+                        const open = parseFloat(openStr) || 0;
+                        const high = parseFloat(highStr) || 0;
+                        const low = parseFloat(lowStr) || 0;
+                        const volume = parseInt(volumeStr) || 0;
+                        
+                        if (open > 0 && high > 0 && low > 0 && close > 0) {
+                            stockData[stockCode] = {
+                                t: date.replace(/\//g, ''),  // 轉回 YYYYMMDD 格式
+                                o: open,
+                                h: high,
+                                l: low,
+                                c: close,
+                                v: volume,
+                            };
+                        }
+                    } catch (error) {
+                        console.error(`Error processing OTC row:`, error.message);
+                        continue;
+                    }
+                }
+            }
+        }
+        // 向下相容舊格式
+        else if (jsonData.aaData && Array.isArray(jsonData.aaData)) {
+            // console.log(`Found ${jsonData.aaData.length} OTC records (old format)`);
+            
+            for (const row of jsonData.aaData) {
+                try {
+                    if (!Array.isArray(row) || row.length < 8) continue;
+                    
+                    const stockCode = row[0]?.toString().trim();
+                    if (!stockCode || !/^\d{4}$/.test(stockCode)) continue;
+                    
+                    const closeStr = row[2]?.toString().replace(/[,\s]/g, '') || '0';
+                    const openStr = row[4]?.toString().replace(/[,\s]/g, '') || '0';
+                    const highStr = row[5]?.toString().replace(/[,\s]/g, '') || '0';
+                    const lowStr = row[6]?.toString().replace(/[,\s]/g, '') || '0';
+                    const volumeStr = row[7]?.toString().replace(/[,\s]/g, '') || '0';
+                    
+                    const close = parseFloat(closeStr) || 0;
+                    const open = parseFloat(openStr) || 0;
+                    const high = parseFloat(highStr) || 0;
+                    const low = parseFloat(lowStr) || 0;
+                    const volume = parseInt(volumeStr) || 0;
+                    
+                    if (open > 0 && high > 0 && low > 0 && close > 0) {
+                        stockData[stockCode] = {
+                            t: date.replace(/\//g, ''),
+                            o: open,
+                            h: high,
+                            l: low,
+                            c: close,
+                            v: volume,
+                        };
+                    }
+                } catch (error) {
+                    continue;
+                }
+            }
+        } else {
+            console.warn('OTC API response missing both tables and aaData');
+            // console.log('Available keys:', Object.keys(jsonData));
+        }
+        
+        // console.log(`Processed ${Object.keys(stockData).length} OTC stocks`);
+        return stockData;
+        
+    } catch (error) {
+        console.error(`Error fetching OTC data for ${date}:`, error.message);
+        return {};
+    }
+}
+
+// 整合版本：根據股票 Market 欄位獲取資料
+async function fetchStockDataByMarket(date, stockCodes) {
+    try {
+        // console.log(`Fetching stock data for ${stockCodes.length} stocks on ${date}`);
+        
+        // 根據 Market 欄位分組
+        const twseStocks = stockCodes.filter(stock => stock.Market === 'TW');
+        const otcStocks = stockCodes.filter(stock => stock.Market === 'TWO');
+        
+        // console.log(`TWSE stocks: ${twseStocks.length}, OTC stocks: ${otcStocks.length}`);
+        
+        const allStockData = {};
+        const promises = [];
+        
+        // 只在有對應股票時才呼叫相應的 API
+        if (twseStocks.length > 0) {
+            promises.push(
+                fetchTWSEDailyData(date).then(data => {
+                    Object.assign(allStockData, data);
+                    // console.log(`Retrieved ${Object.keys(data).length} TWSE stocks for ${date}`);
+                })
+            );
+        }
+        
+        if (otcStocks.length > 0) {
+            promises.push(
+                fetchOTCDailyData(formatDateForOTC(date)).then(data => {
+                    Object.assign(allStockData, data);
+                    // console.log(`Retrieved ${Object.keys(data).length} OTC stocks for ${date}`);
+                })
+            );
+        }
+        
+        // 等待所有 API 完成
+        await Promise.all(promises);
+        
+        return allStockData;
+        
+    } catch (error) {
+        console.error(`Error fetching stock data for ${date}:`, error.message);
         return {};
     }
 }
@@ -232,7 +434,7 @@ function aggregateToMonthlyKLine(dailyDataArray) {
     return monthlyK;
 }
 
-// 優化的批量處理函數
+// 優化的批量處理函數 - 支援櫃買中心
 async function fetchOptimizedBatchData(targets, perd, date) {
     try {
         // 獲取需要的所有交易日期
@@ -243,7 +445,7 @@ async function fetchOptimizedBatchData(targets, perd, date) {
             return [];
         }
 
-        console.log(`Found ${tradingDateDetails.length} trading dates to fetch`);
+        // console.log(`Found ${tradingDateDetails.length} trading dates to fetch`);
 
         // 一次性獲取所有日期的完整市場資料
         const allMarketData = new Map(); // date -> { stockCode: data }
@@ -252,15 +454,17 @@ async function fetchOptimizedBatchData(targets, perd, date) {
         const uniqueDates = [...new Set(tradingDateDetails.map((d) => d.date))];
 
         for (const tradingDate of uniqueDates) {
-            console.log(`Fetching market data for ${tradingDate}...`);
-            const dailyMarketData = await fetchTWSEDailyData(tradingDate);
+            // console.log(`Fetching market data for ${tradingDate}...`);
+            
+            // 使用整合版本的函數，根據股票 Market 欄位獲取資料
+            const dailyMarketData = await fetchStockDataByMarket(tradingDate, targets);
             allMarketData.set(tradingDate, dailyMarketData);
 
             // 請求間隔，避免被封鎖
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await new Promise((resolve) => setTimeout(resolve, 200));
         }
 
-        console.log(`Market data fetched. Processing ${targets.length} stocks...`);
+        // console.log(`Market data fetched. Processing ${targets.length} stocks...`);
 
         // 批量處理所有目標股票
         const results = [];
@@ -343,13 +547,12 @@ async function fetchOptimizedBatchData(targets, perd, date) {
                         periodType: perd,
                         thisKLine: thisK,
                         lastKLine: lastK,
+                        market: target.Market, // 加入市場資訊
                     });
 
-                    console.log(
-                        `${perd.toUpperCase()} Jump found for ${
-                            target.code
-                        }: Last ${perd}K High=${last_high} -> This ${perd}K Open=${this_open}`
-                    );
+                    // console.log(
+                    //     `${perd.toUpperCase()} Jump found for ${target.code} (${target.Market}): Last ${perd}K High=${last_high} -> This ${perd}K Open=${this_open}`
+                    // );
                 }
             } catch (error) {
                 console.error(`Error processing ${target.code}:`, error.message);
@@ -377,14 +580,22 @@ const createJumps = async (req, res) => {
             return res.status(400).json({ message: 'perd must be "w" or "m"', success: false });
         }
 
-        console.log(
-            `Starting ${perd === 'w' ? 'weekly' : 'monthly'} K-line jump detection for ${stock_codes.length} stocks...`
-        );
+        // console.log(
+        //     `Starting ${perd === 'w' ? 'weekly' : 'monthly'} K-line jump detection for ${stock_codes.length} stocks (including OTC)...`
+        // );
 
-        // 使用優化後的批量處理
+        // 使用優化後的批量處理（已支援櫃買中心）
         const data = await fetchOptimizedBatchData(stock_codes, perd, date);
 
-        console.log(`${perd.toUpperCase()}-line jump detection completed. Found ${data.length} jump signals.`);
+        // console.log(`${perd.toUpperCase()}-line jump detection completed. Found ${data.length} jump signals.`);
+
+        // 統計各市場的跳空數量
+        const marketStats = data.reduce((acc, jump) => {
+            acc[jump.market] = (acc[jump.market] || 0) + 1;
+            return acc;
+        }, {});
+        
+        // console.log('Jump distribution by market:', marketStats);
 
         const createdJumps = [];
         for (const jumpData of data) {
@@ -417,6 +628,7 @@ const createJumps = async (req, res) => {
         return res.status(200).json({
             message: 'Successful Created',
             newJumps: createdJumps,
+            marketStats: marketStats,
             success: true,
         });
     } catch (error) {

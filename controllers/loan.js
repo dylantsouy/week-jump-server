@@ -43,7 +43,7 @@ async function fetchLoanRankingData(type, date) {
         let recordDate = `${todayYear}/${todayMonth}/${todayDay}`;
 
         if (pageDate !== todayFormatted) {
-            console.log('日期不匹配，停止執行。');
+            // console.log('日期不匹配，停止執行。');
             return;
         }
         $('table.t01 tr').each((index, element) => {
@@ -113,7 +113,7 @@ async function fetchMarginRate(stockCode) {
         marginRate = +number;
         marginRateChange = +change;
         if (!targetColumn) {
-            console.log(`${stockCode} 未找到融資使用率數據`);
+            // console.log(`${stockCode} 未找到融資使用率數據`);
             return null;
         }
 
@@ -174,7 +174,7 @@ const createLoanRankings = async (req, res) => {
         const nonExistingStockCodes = stockCodes.filter(code => !existingStockCodes.includes(code));
 
         if (nonExistingStockCodes.length > 0) {
-            console.log(`Error Stock codes: ${nonExistingStockCodes.join(', ')}`);
+            // console.log(`Error Stock codes: ${nonExistingStockCodes.join(', ')}`);
         }
 
         const filteredLoanData = loanData.filter(item => existingStockCodes.includes(item.stockCode));
