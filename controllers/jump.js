@@ -302,7 +302,6 @@ async function fetchStockDataByMarket(date, stockCodes) {
         
         const allStockData = {};
         const promises = [];
-        
         // 只在有對應股票時才呼叫相應的 API
         if (twseStocks.length > 0) {
             promises.push(
@@ -454,12 +453,11 @@ async function fetchOptimizedBatchData(targets, perd, date) {
         const uniqueDates = [...new Set(tradingDateDetails.map((d) => d.date))];
 
         for (const tradingDate of uniqueDates) {
-            // console.log(`Fetching market data for ${tradingDate}...`);
+            console.log(`Fetching market data for ${tradingDate}...`);
             
             // 使用整合版本的函數，根據股票 Market 欄位獲取資料
             const dailyMarketData = await fetchStockDataByMarket(tradingDate, targets);
             allMarketData.set(tradingDate, dailyMarketData);
-
             // 請求間隔，避免被封鎖
             await new Promise((resolve) => setTimeout(resolve, 200));
         }
@@ -960,6 +958,242 @@ const deleteJumpsRecords = async (req, res) => {
     }
 };
 
+// 獲取前一個交易日函數
+function getPreviousTradingDate(date) {
+    try {
+        // 確保日期格式正確 - 支援 YYYYMMDD 和 YYYY-MM-DD 格式
+        let targetDate;
+        if (typeof date === 'object') {
+            // 如果是物件，取出 date 屬性
+            date = date.date || date;
+        }
+        
+        if (typeof date === 'string') {
+            if (date.includes('-')) {
+                // YYYY-MM-DD 格式
+                targetDate = moment(date, 'YYYY-MM-DD');
+            } else if (date.length === 8) {
+                // YYYYMMDD 格式
+                targetDate = moment(date, 'YYYYMMDD');
+            } else {
+                throw new Error('Invalid date format');
+            }
+        } else {
+            throw new Error('Date must be string');
+        }
+
+        if (!targetDate.isValid()) {
+            throw new Error('Invalid date');
+        }
+
+        let prevDay = targetDate.clone().subtract(1, 'day');
+        
+        // 跳過週末
+        while (prevDay.day() === 0 || prevDay.day() === 6) {
+            prevDay.subtract(1, 'day');
+        }
+        
+        return prevDay.format('YYYYMMDD');
+    } catch (error) {
+        console.error('Error in getPreviousTradingDate:', error.message, 'Input:', date);
+        return null;
+    }
+}
+
+// 修正的進階檢測函數
+const detectVolumeDecPriceRiseAdvanced = async (req, res) => {
+    try {
+        let { date, minVolume } = req.body;
+        
+        if (!date) {
+            return res.status(400).json({ 
+                message: 'Date is required', 
+                success: false 
+            });
+        }
+
+        // 處理日期格式 - 確保是字串格式
+        if (typeof date === 'object' && date.date) {
+            date = date.date;
+        }
+
+        // 處理最小成交量過濾條件
+        let volumeFilter = 0;
+        if (minVolume !== undefined && minVolume !== null) {
+            volumeFilter = parseInt(minVolume) || 0;
+        }
+
+        // 統一轉換為 YYYYMMDD 格式
+        let formattedDate;
+        if (typeof date === 'string') {
+            if (date.includes('-')) {
+                // YYYY-MM-DD -> YYYYMMDD
+                formattedDate = date.replace(/-/g, '');
+            } else if (date.length === 8) {
+                // 已經是 YYYYMMDD 格式
+                formattedDate = date;
+            } else {
+                return res.status(400).json({ 
+                    message: 'Invalid date format. Expected YYYY-MM-DD or YYYYMMDD', 
+                    success: false 
+                });
+            }
+        } else {
+            return res.status(400).json({ 
+                message: 'Date must be string', 
+                success: false 
+            });
+        }
+
+        // 獲取前兩個交易日
+        const previousDate = getPreviousTradingDate(formattedDate);
+        const dayBeforePrevious = previousDate ? getPreviousTradingDate(previousDate) : null;
+        
+        if (!previousDate || !dayBeforePrevious) {
+            return res.status(400).json({ 
+                message: 'Unable to calculate previous trading dates', 
+                success: false 
+            });
+        }
+        
+        // 獲取三天的股票資料，加入錯誤處理
+        let currentDayData = {};
+        let previousDayData = {};
+        let dayBeforePreviousData = {};
+
+        try {
+            currentDayData = await fetchStockDataByMarket(formattedDate, stock_codes);
+            
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            previousDayData = await fetchStockDataByMarket(previousDate, stock_codes);
+            
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            dayBeforePreviousData = await fetchStockDataByMarket(dayBeforePrevious, stock_codes);
+            
+        } catch (fetchError) {
+            console.error('Error fetching market data:', fetchError.message);
+            return res.status(500).json({ 
+                message: 'Failed to fetch market data: ' + fetchError.message, 
+                success: false 
+            });
+        }
+        
+        const results = [];
+        let processedCount = 0;
+        let validDataCount = 0;
+        let volumeFilteredCount = 0; // 新增：被成交量過濾掉的數量
+        
+        for (const stockInfo of stock_codes) {
+            try {
+                processedCount++;
+                const stockCode = stockInfo.code;
+                const currentData = currentDayData[stockCode];
+                const previousData = previousDayData[stockCode];
+                const dayBeforePreviousData_stock = dayBeforePreviousData[stockCode];
+                
+                // 確保三天都有資料
+                if (!currentData || !previousData || !dayBeforePreviousData_stock) {
+                    continue;
+                }
+                
+                validDataCount++;
+                
+                // 驗證資料品質
+                if (!isValidPriceData(currentData) || 
+                    !isValidPriceData(previousData) || 
+                    !isValidPriceData(dayBeforePreviousData_stock)) {
+                    continue;
+                }
+                    
+                if (!isReasonablePrice(currentData) || 
+                    !isReasonablePrice(previousData) || 
+                    !isReasonablePrice(dayBeforePreviousData_stock)) {
+                    continue;
+                }
+                    
+                if (!isPriceLogicallyValid(currentData) || 
+                    !isPriceLogicallyValid(previousData) || 
+                    !isPriceLogicallyValid(dayBeforePreviousData_stock)) {
+                    continue;
+                }
+                
+                const thisClose = parseFloat(currentData.c);
+                const lastClose = parseFloat(previousData.c);
+                const dayBeforeLastClose = parseFloat(dayBeforePreviousData_stock.c);
+                const thisVolume = parseInt(Math.round(currentData.v / 1000));
+                const lastVolume = parseInt(Math.round(previousData.v / 1000));
+                
+                // 檢查條件
+                const condition1 = thisClose > lastClose; // 今日收盤價高於前一日
+                const condition2 = thisVolume < lastVolume; // 成交量少於前一日
+                const condition3 = thisClose > 10; // 股價大於10元
+                const condition4 = lastClose < dayBeforeLastClose; // 前一日收盤低於前前一日（前一日是跌的）
+                const condition5 = thisVolume >= volumeFilter; // 新增：今日成交量過濾條件
+                
+                // 如果符合前面4個條件但不符合成交量條件，計入過濾數量
+                if (condition1 && condition2 && condition3 && condition4 && !condition5) {
+                    volumeFilteredCount++;
+                    continue;
+                }
+                
+                if (condition1 && condition2 && condition3 && condition4 && condition5) {
+                    results.push({
+                        stockCode: stockCode,
+                        name: stockInfo.name || 'N/A',
+                        industry: stockInfo.industry || 'N/A',
+                        this_close: Math.round(thisClose * 100) / 100,
+                        last_close: Math.round(lastClose * 100) / 100,
+                        this_volume: Math.round(thisVolume), // 轉換為千股
+                        last_volume: Math.round(lastVolume), // 轉換為千股
+                        market: stockInfo.Market,
+                        price_change: Math.round((thisClose - lastClose) * 100) / 100,
+                        price_change_percent: Math.round(((thisClose - lastClose) / lastClose * 100) * 100) / 100,
+                        volume_change_percent: Math.round(((thisVolume - lastVolume) / lastVolume * 100) * 100) / 100,
+                        previous_day_decline: Math.round(((lastClose - dayBeforeLastClose) / dayBeforeLastClose * 100) * 100) / 100
+                    });
+                }
+            } catch (error) {
+                console.error(`Error processing stock ${stockInfo.code}:`, error.message);
+                continue;
+            }
+        }
+        
+        // 按漲幅排序
+        results.sort((a, b) => b.price_change_percent - a.price_change_percent);
+        
+        // 統計各市場的股票數量
+        const marketStats = results.reduce((acc, stock) => {
+            acc[stock.market] = (acc[stock.market] || 0) + 1;
+            return acc;
+        }, {});
+        
+        return res.status(200).json({
+            message: 'Advanced detection completed successfully',
+            data: results,
+            summary: {
+                total: results.length,
+                marketStats: marketStats,
+                date: formattedDate, // 確保是字串格式
+                previousDate: previousDate,
+                dayBeforePrevious: dayBeforePrevious,
+                processedStocks: processedCount,
+                validDataStocks: validDataCount,
+                volumeFilteredStocks: volumeFilteredCount, // 新增：被成交量過濾的數量
+                minVolumeFilter: volumeFilter // 新增：過濾條件
+            },
+            success: true
+        });
+        
+    } catch (error) {
+        console.error('Error in detectVolumeDecPriceRiseAdvanced:', error.message);
+        return res.status(500).json({ 
+            message: errorHandler(error), 
+            success: false 
+        });
+    }
+};
 module.exports = {
     createJumps,
     getAllJumps,
@@ -970,4 +1204,5 @@ module.exports = {
     deleteJumpsRecords,
     getJumpRecord,
     bulkDeleteJumps,
+    detectVolumeDecPriceRiseAdvanced
 };
