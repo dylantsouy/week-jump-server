@@ -5,6 +5,144 @@ const { errorHandler } = require('../helpers/responseHelper');
 const moment = require('moment');
 const iconv = require('iconv-lite');
 
+// ========== 台灣證券交易所國定假日清單 (需定期更新) ==========
+const taiwanHolidays = {
+    '2025': [
+        '20250101', // 元旦
+        '20250127', '20250128', '20250129', '20250130', '20250131', // 春節
+        '20250228', // 和平紀念日
+        '20250403', '20250404', // 清明節
+        '20250501', // 勞動節
+        '20250530', // 端午節
+        '20250929', // 教師節
+        '20251010', // 國慶日
+        '20251024', // 臺灣光復暨金門古寧頭大捷紀念日
+        '20251225', // 行憲紀念日
+    ],
+    '2024': [
+        '20240101', // 元旦
+        '20240208', '20240209', '20240210', '20240211', '20240212', '20240213', '20240214', // 春節
+        '20240228', // 和平紀念日
+        '20240404', '20240405', // 清明節
+        '20240501', // 勞動節
+        '20240608', '20240609', '20240610', // 端午節
+        '20240917', // 中秋節
+        '20241010', // 國慶日
+    ],
+};
+
+// 檢查是否為國定假日
+function isHoliday(dateStr) {
+    const year = dateStr.substring(0, 4);
+    const holidays = taiwanHolidays[year] || [];
+    return holidays.includes(dateStr);
+}
+
+// 檢查是否為交易日
+function isTradingDay(dateStr) {
+    const date = moment(dateStr, 'YYYYMMDD');
+    
+    // 週末不是交易日
+    if (date.day() === 0 || date.day() === 6) {
+        return false;
+    }
+    
+    // 國定假日不是交易日
+    if (isHoliday(dateStr)) {
+        return false;
+    }
+    
+    return true;
+}
+
+// 獲取下一個交易日
+function getNextTradingDay(dateStr) {
+    let date = moment(dateStr, 'YYYYMMDD');
+    let attempts = 0;
+    const maxAttempts = 30; // 避免無限循環
+    
+    while (attempts < maxAttempts) {
+        date.add(1, 'day');
+        const dateString = date.format('YYYYMMDD');
+        
+        if (isTradingDay(dateString)) {
+            return dateString;
+        }
+        
+        attempts++;
+    }
+    
+    console.error('Unable to find next trading day within 30 days');
+    return dateStr;
+}
+
+// 獲取前一個交易日
+function getPreviousTradingDay(dateStr) {
+    let date = moment(dateStr, 'YYYYMMDD');
+    let attempts = 0;
+    const maxAttempts = 30;
+    
+    while (attempts < maxAttempts) {
+        date.subtract(1, 'day');
+        const dateString = date.format('YYYYMMDD');
+        
+        if (isTradingDay(dateString)) {
+            return dateString;
+        }
+        
+        attempts++;
+    }
+    
+    console.error('Unable to find previous trading day within 30 days');
+    return dateStr;
+}
+
+// 調整到該週第一個交易日
+function adjustToFirstTradingDayOfWeek(dateStr) {
+    const date = moment(dateStr, 'YYYYMMDD');
+    
+    // 如果傳入的日期本身就是交易日，找到該週週一開始算起的第一個交易日
+    let weekStart = date.clone().startOf('week'); // 週一
+    
+    // 從週一開始找第一個交易日
+    for (let i = 0; i < 7; i++) {
+        const checkDate = weekStart.clone().add(i, 'days');
+        const checkDateStr = checkDate.format('YYYYMMDD');
+        
+        // 如果這天是交易日，且不晚於傳入的日期
+        if (isTradingDay(checkDateStr) && !checkDate.isAfter(date)) {
+            return checkDateStr;
+        }
+    }
+    
+    // 如果週一到傳入日期之間都沒有交易日，使用傳入日期的下一個交易日
+    return getNextTradingDay(dateStr);
+}
+
+// 調整到該月第一個交易日
+function adjustToFirstTradingDayOfMonth(dateStr) {
+    const date = moment(dateStr, 'YYYYMMDD');
+    const monthStart = date.clone().startOf('month');
+    
+    // 從月初開始找第一個交易日
+    let currentDay = monthStart.clone();
+    const monthEnd = date.clone().endOf('month');
+    
+    while (currentDay.isSameOrBefore(monthEnd)) {
+        const checkDateStr = currentDay.format('YYYYMMDD');
+        
+        // 如果這天是交易日，且不晚於傳入的日期
+        if (isTradingDay(checkDateStr) && !currentDay.isAfter(date)) {
+            return checkDateStr;
+        }
+        
+        currentDay.add(1, 'day');
+    }
+    
+    // 如果月初到傳入日期之間都沒有交易日，使用傳入日期的下一個交易日
+    return getNextTradingDay(dateStr);
+}
+
 // 數據驗證輔助函數
 const isValidPriceData = (record) => {
     return (
@@ -141,7 +279,6 @@ function formatDateForOTC(date) {
         const rocYear = year - 1911;
         
         const formattedDate = `${rocYear}/${month}/${day}`;
-        // console.log(`Date conversion for OTC: ${date} -> ${formattedDate}`);
         
         return formattedDate;
     } catch (error) {
@@ -153,10 +290,7 @@ function formatDateForOTC(date) {
 // 從櫃買中心獲取單日資料
 async function fetchOTCDailyData(date) {
     try {
-        // console.log(`Fetching OTC data for date: ${date}`);
-        
         const url = `https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php?l=zh-tw&d=${date}&se=AL`;
-        // console.log(`OTC API URL: ${url}`);
         
         const response = await axios.get(url, {
             timeout: 20000,
@@ -168,8 +302,6 @@ async function fetchOTCDailyData(date) {
                 'X-Requested-With': 'XMLHttpRequest'
             }
         });
-        
-        // console.log('OTC API Response Status:', response.status);
         
         if (!response.data) {
             console.warn('OTC API returned no data');
@@ -188,24 +320,17 @@ async function fetchOTCDailyData(date) {
             }
         }
         
-        // console.log('OTC JSON structure:', Object.keys(jsonData));
-        
         // 處理新的 tables 格式
         if (jsonData.tables && Array.isArray(jsonData.tables) && jsonData.tables.length > 0) {
             const table = jsonData.tables[0];
-            // console.log(`Found OTC table with ${table.totalCount} total records`);
             
             if (table.data && Array.isArray(table.data)) {
-                // console.log(`Processing ${table.data.length} OTC data records`);
-                
                 for (const row of table.data) {
                     try {
                         if (!Array.isArray(row) || row.length < 8) {
                             continue;
                         }
                         
-                        // 根據新格式的欄位順序解析
-                        // ["代號","名稱","收盤 ","漲跌","開盤 ","最高 ","最低","成交股數  ",...]
                         const stockCode = row[0]?.toString().trim();
                         if (!stockCode || !/^\d{4}$/.test(stockCode)) continue;
                         
@@ -223,7 +348,7 @@ async function fetchOTCDailyData(date) {
                         
                         if (open > 0 && high > 0 && low > 0 && close > 0) {
                             stockData[stockCode] = {
-                                t: date.replace(/\//g, ''),  // 轉回 YYYYMMDD 格式
+                                t: date.replace(/\//g, ''),
                                 o: open,
                                 h: high,
                                 l: low,
@@ -240,8 +365,6 @@ async function fetchOTCDailyData(date) {
         }
         // 向下相容舊格式
         else if (jsonData.aaData && Array.isArray(jsonData.aaData)) {
-            // console.log(`Found ${jsonData.aaData.length} OTC records (old format)`);
-            
             for (const row of jsonData.aaData) {
                 try {
                     if (!Array.isArray(row) || row.length < 8) continue;
@@ -277,10 +400,8 @@ async function fetchOTCDailyData(date) {
             }
         } else {
             console.warn('OTC API response missing both tables and aaData');
-            // console.log('Available keys:', Object.keys(jsonData));
         }
         
-        // console.log(`Processed ${Object.keys(stockData).length} OTC stocks`);
         return stockData;
         
     } catch (error) {
@@ -292,22 +413,18 @@ async function fetchOTCDailyData(date) {
 // 整合版本：根據股票 Market 欄位獲取資料
 async function fetchStockDataByMarket(date, stockCodes) {
     try {
-        // console.log(`Fetching stock data for ${stockCodes.length} stocks on ${date}`);
-        
         // 根據 Market 欄位分組
         const twseStocks = stockCodes.filter(stock => stock.Market === 'TW');
         const otcStocks = stockCodes.filter(stock => stock.Market === 'TWO');
         
-        // console.log(`TWSE stocks: ${twseStocks.length}, OTC stocks: ${otcStocks.length}`);
-        
         const allStockData = {};
         const promises = [];
+        
         // 只在有對應股票時才呼叫相應的 API
         if (twseStocks.length > 0) {
             promises.push(
                 fetchTWSEDailyData(date).then(data => {
                     Object.assign(allStockData, data);
-                    // console.log(`Retrieved ${Object.keys(data).length} TWSE stocks for ${date}`);
                 })
             );
         }
@@ -316,7 +433,6 @@ async function fetchStockDataByMarket(date, stockCodes) {
             promises.push(
                 fetchOTCDailyData(formatDateForOTC(date)).then(data => {
                     Object.assign(allStockData, data);
-                    // console.log(`Retrieved ${Object.keys(data).length} OTC stocks for ${date}`);
                 })
             );
         }
@@ -332,7 +448,7 @@ async function fetchStockDataByMarket(date, stockCodes) {
     }
 }
 
-// 獲取週線/月線需要的完整交易日期範圍
+// 獲取週線/月線需要的完整交易日期範圍（過濾假日版本）
 function getTradingDatesForPeriod(targetDate, perd) {
     const dates = [];
     const target = moment(targetDate, 'YYYYMMDD');
@@ -348,15 +464,19 @@ function getTradingDatesForPeriod(targetDate, perd) {
 
             for (let day = 0; day < 7; day++) {
                 const date = weekStart.clone().add(day, 'days');
+                const dateStr = date.format('YYYYMMDD');
 
                 // 跳過週末
                 if (date.day() === 0 || date.day() === 6) continue;
+                
+                // 跳過國定假日
+                if (isHoliday(dateStr)) continue;
 
                 // 本週不要超過目標日期
                 if (week === 0 && date.isAfter(target)) continue;
 
                 dates.push({
-                    date: date.format('YYYYMMDD'),
+                    date: dateStr,
                     week: week === 0 ? 'thisWeek' : 'lastWeek',
                     weekStart: weekStart.format('YYYYMMDD'),
                 });
@@ -374,18 +494,23 @@ function getTradingDatesForPeriod(targetDate, perd) {
 
             let currentDay = monthStart.clone();
             while (currentDay.isSameOrBefore(monthEnd)) {
+                const dateStr = currentDay.format('YYYYMMDD');
+                
                 // 跳過週末
                 if (currentDay.day() !== 0 && currentDay.day() !== 6) {
-                    // 本月不要超過目標日期
-                    if (month === 0 && currentDay.isAfter(target)) {
-                        break;
-                    }
+                    // 跳過國定假日
+                    if (!isHoliday(dateStr)) {
+                        // 本月不要超過目標日期
+                        if (month === 0 && currentDay.isAfter(target)) {
+                            break;
+                        }
 
-                    dates.push({
-                        date: currentDay.format('YYYYMMDD'),
-                        month: month === 0 ? 'thisMonth' : 'lastMonth',
-                        monthStart: monthStart.format('YYYYMMDD'),
-                    });
+                        dates.push({
+                            date: dateStr,
+                            month: month === 0 ? 'thisMonth' : 'lastMonth',
+                            monthStart: monthStart.format('YYYYMMDD'),
+                        });
+                    }
                 }
                 currentDay.add(1, 'day');
             }
@@ -403,12 +528,12 @@ function aggregateToWeeklyKLine(dailyDataArray) {
     const sortedData = dailyDataArray.sort((a, b) => parseInt(a.t) - parseInt(b.t));
 
     const weeklyK = {
-        t: sortedData[0].t, // 使用第一個交易日作為週期標記
-        o: sortedData[0].o, // 週開盤 = 第一個交易日開盤
-        h: Math.max(...sortedData.map((d) => d.h)), // 週最高 = 所有交易日最高價
-        l: Math.min(...sortedData.map((d) => d.l)), // 週最低 = 所有交易日最低價
-        c: sortedData[sortedData.length - 1].c, // 週收盤 = 最後一個交易日收盤
-        v: sortedData.reduce((sum, d) => sum + d.v, 0), // 週成交量 = 累加
+        t: sortedData[0].t,
+        o: sortedData[0].o,
+        h: Math.max(...sortedData.map((d) => d.h)),
+        l: Math.min(...sortedData.map((d) => d.l)),
+        c: sortedData[sortedData.length - 1].c,
+        v: sortedData.reduce((sum, d) => sum + d.v, 0),
     };
 
     return weeklyK;
@@ -422,18 +547,18 @@ function aggregateToMonthlyKLine(dailyDataArray) {
     const sortedData = dailyDataArray.sort((a, b) => parseInt(a.t) - parseInt(b.t));
 
     const monthlyK = {
-        t: sortedData[0].t, // 使用第一個交易日作為月期標記
-        o: sortedData[0].o, // 月開盤 = 第一個交易日開盤
-        h: Math.max(...sortedData.map((d) => d.h)), // 月最高 = 所有交易日最高價
-        l: Math.min(...sortedData.map((d) => d.l)), // 月最低 = 所有交易日最低價
-        c: sortedData[sortedData.length - 1].c, // 月收盤 = 最後一個交易日收盤
-        v: sortedData.reduce((sum, d) => sum + d.v, 0), // 月成交量 = 累加
+        t: sortedData[0].t,
+        o: sortedData[0].o,
+        h: Math.max(...sortedData.map((d) => d.h)),
+        l: Math.min(...sortedData.map((d) => d.l)),
+        c: sortedData[sortedData.length - 1].c,
+        v: sortedData.reduce((sum, d) => sum + d.v, 0),
     };
 
     return monthlyK;
 }
 
-// 優化的批量處理函數 - 支援櫃買中心
+// 優化的批量處理函數
 async function fetchOptimizedBatchData(targets, perd, date) {
     try {
         // 獲取需要的所有交易日期
@@ -444,10 +569,10 @@ async function fetchOptimizedBatchData(targets, perd, date) {
             return [];
         }
 
-        // console.log(`Found ${tradingDateDetails.length} trading dates to fetch`);
+        console.log(`Found ${tradingDateDetails.length} trading dates to fetch`);
 
         // 一次性獲取所有日期的完整市場資料
-        const allMarketData = new Map(); // date -> { stockCode: data }
+        const allMarketData = new Map();
 
         // 去重日期
         const uniqueDates = [...new Set(tradingDateDetails.map((d) => d.date))];
@@ -455,14 +580,12 @@ async function fetchOptimizedBatchData(targets, perd, date) {
         for (const tradingDate of uniqueDates) {
             console.log(`Fetching market data for ${tradingDate}...`);
             
-            // 使用整合版本的函數，根據股票 Market 欄位獲取資料
             const dailyMarketData = await fetchStockDataByMarket(tradingDate, targets);
             allMarketData.set(tradingDate, dailyMarketData);
+            
             // 請求間隔，避免被封鎖
             await new Promise((resolve) => setTimeout(resolve, 200));
         }
-
-        // console.log(`Market data fetched. Processing ${targets.length} stocks...`);
 
         // 批量處理所有目標股票
         const results = [];
@@ -484,7 +607,7 @@ async function fetchOptimizedBatchData(targets, perd, date) {
                 }
 
                 if (stockDailyData.length === 0) {
-                    continue; // 沒有資料的股票跳過
+                    continue;
                 }
 
                 // 按週期分組資料
@@ -509,7 +632,7 @@ async function fetchOptimizedBatchData(targets, perd, date) {
                         : aggregateToMonthlyKLine(periodGroups['lastMonth']);
 
                 if (!thisK || !lastK) {
-                    continue; // 無法生成完整K線的股票跳過
+                    continue;
                 }
 
                 // 驗證K線資料品質
@@ -525,13 +648,13 @@ async function fetchOptimizedBatchData(targets, perd, date) {
                     continue;
                 }
 
-                // 跳空檢測邏輯 - 週K/月K vs 上週K/上月K
+                // 跳空檢測邏輯
                 const last_value = parseInt(Math.round(lastK.v / 1000));
                 const this_open = Math.round(thisK.o * 100) / 100;
                 const this_low = Math.round(thisK.l * 100) / 100;
                 const last_high = Math.round(lastK.h * 100) / 100;
 
-                // 向上跳空條件：本週/月開盤價 > 上週/月最高價
+                // 向上跳空條件
                 if (this_open > last_high && this_open > 10) {
                     results.push({
                         stockCode: target.code,
@@ -545,12 +668,8 @@ async function fetchOptimizedBatchData(targets, perd, date) {
                         periodType: perd,
                         thisKLine: thisK,
                         lastKLine: lastK,
-                        market: target.Market, // 加入市場資訊
+                        market: target.Market,
                     });
-
-                    // console.log(
-                    //     `${perd.toUpperCase()} Jump found for ${target.code} (${target.Market}): Last ${perd}K High=${last_high} -> This ${perd}K Open=${this_open}`
-                    // );
                 }
             } catch (error) {
                 console.error(`Error processing ${target.code}:`, error.message);
@@ -569,7 +688,8 @@ async function fetchOptimizedBatchData(targets, perd, date) {
 
 const createJumps = async (req, res) => {
     try {
-        const { perd, date } = req.body;
+        let { perd, date } = req.body;
+        
         if (!perd || !date) {
             return res.status(400).json({ message: 'please fill required field', success: false });
         }
@@ -578,14 +698,35 @@ const createJumps = async (req, res) => {
             return res.status(400).json({ message: 'perd must be "w" or "m"', success: false });
         }
 
-        // console.log(
-        //     `Starting ${perd === 'w' ? 'weekly' : 'monthly'} K-line jump detection for ${stock_codes.length} stocks (including OTC)...`
-        // );
+        // 檢查傳入的日期是否為交易日，如果不是，自動調整
+        let adjustedDate = date;
+        let dateAdjusted = false;
+        
+        if (!isTradingDay(date)) {
+            console.log(`Input date ${date} is not a trading day (holiday or weekend)`);
+            
+            // 根據週期類型調整日期
+            if (perd === 'w') {
+                adjustedDate = adjustToFirstTradingDayOfWeek(date);
+            } else if (perd === 'm') {
+                adjustedDate = adjustToFirstTradingDayOfMonth(date);
+            }
+            
+            dateAdjusted = true;
+            console.log(`Date adjusted from ${date} to ${adjustedDate} (first trading day of ${perd === 'w' ? 'week' : 'month'})`);
+        }
 
-        // 使用優化後的批量處理（已支援櫃買中心）
-        const data = await fetchOptimizedBatchData(stock_codes, perd, date);
+        console.log(
+            `Starting ${perd === 'w' ? 'weekly' : 'monthly'} K-line jump detection for ${stock_codes.length} stocks...`
+        );
+        if (dateAdjusted) {
+            console.log(`Using adjusted date: ${adjustedDate}`);
+        }
 
-        // console.log(`${perd.toUpperCase()}-line jump detection completed. Found ${data.length} jump signals.`);
+        // 使用調整後的日期進行批量處理
+        const data = await fetchOptimizedBatchData(stock_codes, perd, adjustedDate);
+
+        console.log(`${perd.toUpperCase()}-line jump detection completed. Found ${data.length} jump signals.`);
 
         // 統計各市場的跳空數量
         const marketStats = data.reduce((acc, jump) => {
@@ -593,7 +734,7 @@ const createJumps = async (req, res) => {
             return acc;
         }, {});
         
-        // console.log('Jump distribution by market:', marketStats);
+        console.log('Jump distribution by market:', marketStats);
 
         const createdJumps = [];
         for (const jumpData of data) {
@@ -621,12 +762,22 @@ const createJumps = async (req, res) => {
         }
 
         if (createdJumps.length === 0) {
-            return res.status(400).json({ message: 'No new jumps created', success: false });
+            return res.status(400).json({ 
+                message: 'No new jumps created',
+                dateAdjusted: dateAdjusted,
+                originalDate: dateAdjusted ? date : undefined,
+                adjustedDate: dateAdjusted ? adjustedDate : undefined,
+                success: false 
+            });
         }
+        
         return res.status(200).json({
             message: 'Successful Created',
             newJumps: createdJumps,
             marketStats: marketStats,
+            dateAdjusted: dateAdjusted,
+            originalDate: dateAdjusted ? date : undefined,
+            adjustedDate: dateAdjusted ? adjustedDate : date,
             success: true,
         });
     } catch (error) {
@@ -958,22 +1109,18 @@ const deleteJumpsRecords = async (req, res) => {
     }
 };
 
-// 獲取前一個交易日函數
+// detectVolumeDecPriceRiseAdvanced 使用的 getPreviousTradingDate (已更新為使用假日過濾)
 function getPreviousTradingDate(date) {
     try {
-        // 確保日期格式正確 - 支援 YYYYMMDD 和 YYYY-MM-DD 格式
         let targetDate;
         if (typeof date === 'object') {
-            // 如果是物件，取出 date 屬性
             date = date.date || date;
         }
         
         if (typeof date === 'string') {
             if (date.includes('-')) {
-                // YYYY-MM-DD 格式
                 targetDate = moment(date, 'YYYY-MM-DD');
             } else if (date.length === 8) {
-                // YYYYMMDD 格式
                 targetDate = moment(date, 'YYYYMMDD');
             } else {
                 throw new Error('Invalid date format');
@@ -986,21 +1133,14 @@ function getPreviousTradingDate(date) {
             throw new Error('Invalid date');
         }
 
-        let prevDay = targetDate.clone().subtract(1, 'day');
-        
-        // 跳過週末
-        while (prevDay.day() === 0 || prevDay.day() === 6) {
-            prevDay.subtract(1, 'day');
-        }
-        
-        return prevDay.format('YYYYMMDD');
+        // 使用 getPreviousTradingDay 函數，會自動過濾週末和假日
+        return getPreviousTradingDay(targetDate.format('YYYYMMDD'));
     } catch (error) {
         console.error('Error in getPreviousTradingDate:', error.message, 'Input:', date);
         return null;
     }
 }
 
-// 修正的進階檢測函數
 const detectVolumeDecPriceRiseAdvanced = async (req, res) => {
     try {
         let { date, minVolume } = req.body;
@@ -1012,25 +1152,20 @@ const detectVolumeDecPriceRiseAdvanced = async (req, res) => {
             });
         }
 
-        // 處理日期格式 - 確保是字串格式
         if (typeof date === 'object' && date.date) {
             date = date.date;
         }
 
-        // 處理最小成交量過濾條件
         let volumeFilter = 0;
         if (minVolume !== undefined && minVolume !== null) {
             volumeFilter = parseInt(minVolume) || 0;
         }
 
-        // 統一轉換為 YYYYMMDD 格式
         let formattedDate;
         if (typeof date === 'string') {
             if (date.includes('-')) {
-                // YYYY-MM-DD -> YYYYMMDD
                 formattedDate = date.replace(/-/g, '');
             } else if (date.length === 8) {
-                // 已經是 YYYYMMDD 格式
                 formattedDate = date;
             } else {
                 return res.status(400).json({ 
@@ -1045,8 +1180,18 @@ const detectVolumeDecPriceRiseAdvanced = async (req, res) => {
             });
         }
 
-        // 獲取前兩個交易日
-        const previousDate = getPreviousTradingDate(formattedDate);
+        // 檢查並調整日期（如果是假日）
+        let adjustedDate = formattedDate;
+        let dateAdjusted = false;
+        
+        if (!isTradingDay(formattedDate)) {
+            adjustedDate = getNextTradingDay(formattedDate);
+            dateAdjusted = true;
+            console.log(`Input date ${formattedDate} is not a trading day, adjusted to ${adjustedDate}`);
+        }
+
+        // 獲取前兩個交易日（使用過濾假日的函數）
+        const previousDate = getPreviousTradingDate(adjustedDate);
         const dayBeforePrevious = previousDate ? getPreviousTradingDate(previousDate) : null;
         
         if (!previousDate || !dayBeforePrevious) {
@@ -1056,13 +1201,12 @@ const detectVolumeDecPriceRiseAdvanced = async (req, res) => {
             });
         }
         
-        // 獲取三天的股票資料，加入錯誤處理
         let currentDayData = {};
         let previousDayData = {};
         let dayBeforePreviousData = {};
 
         try {
-            currentDayData = await fetchStockDataByMarket(formattedDate, stock_codes);
+            currentDayData = await fetchStockDataByMarket(adjustedDate, stock_codes);
             
             await new Promise(resolve => setTimeout(resolve, 300));
             
@@ -1083,7 +1227,7 @@ const detectVolumeDecPriceRiseAdvanced = async (req, res) => {
         const results = [];
         let processedCount = 0;
         let validDataCount = 0;
-        let volumeFilteredCount = 0; // 新增：被成交量過濾掉的數量
+        let volumeFilteredCount = 0;
         
         for (const stockInfo of stock_codes) {
             try {
@@ -1093,14 +1237,12 @@ const detectVolumeDecPriceRiseAdvanced = async (req, res) => {
                 const previousData = previousDayData[stockCode];
                 const dayBeforePreviousData_stock = dayBeforePreviousData[stockCode];
                 
-                // 確保三天都有資料
                 if (!currentData || !previousData || !dayBeforePreviousData_stock) {
                     continue;
                 }
                 
                 validDataCount++;
                 
-                // 驗證資料品質
                 if (!isValidPriceData(currentData) || 
                     !isValidPriceData(previousData) || 
                     !isValidPriceData(dayBeforePreviousData_stock)) {
@@ -1125,14 +1267,12 @@ const detectVolumeDecPriceRiseAdvanced = async (req, res) => {
                 const thisVolume = parseInt(Math.round(currentData.v / 1000));
                 const lastVolume = parseInt(Math.round(previousData.v / 1000));
                 
-                // 檢查條件
-                const condition1 = thisClose > lastClose; // 今日收盤價高於前一日
-                const condition2 = thisVolume < lastVolume; // 成交量少於前一日
-                const condition3 = thisClose > 10; // 股價大於10元
-                const condition4 = lastClose < dayBeforeLastClose; // 前一日收盤低於前前一日（前一日是跌的）
-                const condition5 = thisVolume >= volumeFilter; // 新增：今日成交量過濾條件
+                const condition1 = thisClose > lastClose;
+                const condition2 = thisVolume < lastVolume;
+                const condition3 = thisClose > 10;
+                const condition4 = lastClose < dayBeforeLastClose;
+                const condition5 = thisVolume >= volumeFilter;
                 
-                // 如果符合前面4個條件但不符合成交量條件，計入過濾數量
                 if (condition1 && condition2 && condition3 && condition4 && !condition5) {
                     volumeFilteredCount++;
                     continue;
@@ -1145,8 +1285,8 @@ const detectVolumeDecPriceRiseAdvanced = async (req, res) => {
                         industry: stockInfo.industry || 'N/A',
                         this_close: Math.round(thisClose * 100) / 100,
                         last_close: Math.round(lastClose * 100) / 100,
-                        this_volume: Math.round(thisVolume), // 轉換為千股
-                        last_volume: Math.round(lastVolume), // 轉換為千股
+                        this_volume: Math.round(thisVolume),
+                        last_volume: Math.round(lastVolume),
                         market: stockInfo.Market,
                         price_change: Math.round((thisClose - lastClose) * 100) / 100,
                         price_change_percent: Math.round(((thisClose - lastClose) / lastClose * 100) * 100) / 100,
@@ -1160,10 +1300,8 @@ const detectVolumeDecPriceRiseAdvanced = async (req, res) => {
             }
         }
         
-        // 按漲幅排序
         results.sort((a, b) => b.price_change_percent - a.price_change_percent);
         
-        // 統計各市場的股票數量
         const marketStats = results.reduce((acc, stock) => {
             acc[stock.market] = (acc[stock.market] || 0) + 1;
             return acc;
@@ -1175,13 +1313,15 @@ const detectVolumeDecPriceRiseAdvanced = async (req, res) => {
             summary: {
                 total: results.length,
                 marketStats: marketStats,
-                date: formattedDate, // 確保是字串格式
+                date: adjustedDate,
+                originalDate: dateAdjusted ? formattedDate : undefined,
+                dateAdjusted: dateAdjusted,
                 previousDate: previousDate,
                 dayBeforePrevious: dayBeforePrevious,
                 processedStocks: processedCount,
                 validDataStocks: validDataCount,
-                volumeFilteredStocks: volumeFilteredCount, // 新增：被成交量過濾的數量
-                minVolumeFilter: volumeFilter // 新增：過濾條件
+                volumeFilteredStocks: volumeFilteredCount,
+                minVolumeFilter: volumeFilter
             },
             success: true
         });
@@ -1194,6 +1334,7 @@ const detectVolumeDecPriceRiseAdvanced = async (req, res) => {
         });
     }
 };
+
 module.exports = {
     createJumps,
     getAllJumps,
