@@ -647,9 +647,6 @@ const checkStocks = async (req, res) => {
             }
         };
         
-        // console.log('Market statistics:', marketStats);
-        // console.log(`Overall: ${availableCount} available, ${unavailableCount} unavailable`);
-        
         res.json({
             success: true,
             summary: {
