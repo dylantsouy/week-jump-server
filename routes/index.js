@@ -13,6 +13,7 @@ const verifyToken = require('../middlewares/authJwt');
 const TradingControllers = require('../controllers/trading');
 const BuyReasonControllers = require('../controllers/buyReason');
 const ChecklistControllers = require('../controllers/checkList');
+const NoteControllers = require('../controllers/note');
 
 router.get('/ping', (req, res) => {
     res.status(200).send('pong');
@@ -106,5 +107,11 @@ router.post('/checklists', [verifyToken], ChecklistControllers.createCheckList);
 router.put('/checklists/:id', [verifyToken], ChecklistControllers.updateCheckList);
 router.patch('/checklists/:id/toggle', [verifyToken], ChecklistControllers.toggleCheckList);
 router.delete('/checklists/:id', [verifyToken], ChecklistControllers.deleteCheckList);
+
+router.post('/notes', [verifyToken], NoteControllers.createNote);
+router.get('/notes', [verifyToken], NoteControllers.getAllNotes);
+router.put('/notes/:id', [verifyToken], NoteControllers.updateNote);
+router.delete('/notes/:id', [verifyToken], NoteControllers.deleteNote);
+router.delete('/bulkDeleteNote', [verifyToken], NoteControllers.bulkDeleteNote);
 
 module.exports = router;
